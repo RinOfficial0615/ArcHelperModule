@@ -1,5 +1,6 @@
 #include "manager/HookManager.hpp"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include "config/ModuleConfig.h"
@@ -140,10 +141,7 @@ void HookManager::RestoreAllInlineHooks() {
 }
 
 bool HookManager::IsAllZeros(const std::array<uint8_t, 16> &sig) {
-    for (uint8_t b : sig) {
-        if (b != 0) return false;
-    }
-    return true;
+    return std::ranges::all_of(sig, [](uint8_t b) { return b == 0; });
 }
 
 } // namespace arc_autoplay
