@@ -58,9 +58,10 @@ public:
     bool RestoreInlineHook(void *hook_handler);
     void RestoreAllInlineHooks();
 
-    template <typename RType, typename... Params>
-    static RType CallOriginal(RType (*handler)(Params...), Params... params) {
-        void *orig_ptr = GetOriginalForHook(reinterpret_cast<void *>(handler));
+    template <auto HookFn, typename RType, typename... Params, typename... Args>
+    static RType CallOriginal(RType (*)(Params...), Args&&... args) {
+        static void *orig_ptr = nullptr;
+        if (!orig_ptr) orig_ptr = GetOriginalForHook(reinterpret_cast<void *>(HookFn));
         if (!orig_ptr) {
             if constexpr (!std::is_void_v<RType>) {
                 return RType{};
@@ -73,9 +74,9 @@ public:
         auto orig_func = reinterpret_cast<FuncType>(orig_ptr);
 
         if constexpr (std::is_void_v<RType>) {
-            orig_func(params...);
+            orig_func(std::forward<Args>(args)...);
         } else {
-            return orig_func(params...);
+            return orig_func(std::forward<Args>(args)...);
         }
     }
 
@@ -111,4 +112,4 @@ private:
 } // namespace arc_autoplay
 
 #define CALL_ORIG(func, ...) \
-    arc_autoplay::HookManager::CallOriginal(func, ##__VA_ARGS__)
+    arc_autoplay::HookManager::CallOriginal<func>(func, ##__VA_ARGS__)
