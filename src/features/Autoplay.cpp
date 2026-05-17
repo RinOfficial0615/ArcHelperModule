@@ -288,7 +288,7 @@ void Autoplay::OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t pl
     CALL_ORIG(GameplayProcessLogicNotesHook, gameplay.addr(), play_scene_or_ctx);
 }
 
-void Autoplay::OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) {
+void Autoplay::OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) const {
     if (!touch) return;
 
     // Only forward judgements for our synthetic touches. Real player touches
