@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
@@ -151,12 +152,10 @@ inline bool GameVersionMatches(const char *actual, const char *expected) {
 }
 
 inline const GameProfile *FindGameProfileByVersionString(const char *version) {
-    for (const auto &profile : kSupportedGameProfiles) {
-        if (profile.version_name && GameVersionMatches(version, profile.version_name)) {
-            return &profile;
-        }
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(kSupportedGameProfiles, [version](const auto &profile) {
+        return profile.version_name && GameVersionMatches(version, profile.version_name);
+    });
+    return it != kSupportedGameProfiles.end() ? &(*it) : nullptr;
 }
 
 } // namespace arc_autoplay::cfg
