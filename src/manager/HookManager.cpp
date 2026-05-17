@@ -95,17 +95,17 @@ bool HookManager::InstallInlineHookImpl(uintptr_t &addr,
 }
 
 HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) {
-    for (auto &rec : inline_hooks_) {
-        if (rec.hook_handler == hook_handler) return &rec;
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(inline_hooks_, [hook_handler](const auto &rec) {
+        return rec.hook_handler == hook_handler;
+    });
+    return it != inline_hooks_.end() ? &(*it) : nullptr;
 }
 
 const HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) const {
-    for (const auto &rec : inline_hooks_) {
-        if (rec.hook_handler == hook_handler) return &rec;
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(inline_hooks_, [hook_handler](const auto &rec) {
+        return rec.hook_handler == hook_handler;
+    });
+    return it != inline_hooks_.end() ? &(*it) : nullptr;
 }
 
 bool HookManager::HasOriginalForHook(void *hook_handler) const {
