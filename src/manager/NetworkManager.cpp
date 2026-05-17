@@ -123,25 +123,31 @@ std::string NetworkManager::EscapeBytesForLog(const uint8_t *data, size_t len) {
         const uint8_t b = data[i];
         switch (b) {
         case '\\':
-            out += "\\\\";
+            out.push_back('\\');
+            out.push_back('\\');
             break;
         case '"':
-            out += "\\\"";
+            out.push_back('\\');
+            out.push_back('"');
             break;
         case '\n':
-            out += "\\n";
+            out.push_back('\\');
+            out.push_back('n');
             break;
         case '\r':
-            out += "\\r";
+            out.push_back('\\');
+            out.push_back('r');
             break;
         case '\t':
-            out += "\\t";
+            out.push_back('\\');
+            out.push_back('t');
             break;
         default:
             if (b >= 0x20 && b <= 0x7E) {
                 out.push_back(static_cast<char>(b));
             } else {
-                out += "\\x";
+                out.push_back('\\');
+                out.push_back('x');
                 out.push_back(hex_nibble(static_cast<uint8_t>(b >> 4)));
                 out.push_back(hex_nibble(static_cast<uint8_t>(b & 0x0F)));
             }
