@@ -27,7 +27,7 @@ inline static bool PatchWithPagePerms(uintptr_t range_start, size_t range_size, 
     int original_perms = 0;
     if (!ProcMaps::GetPermissions(range_start, original_perms)) return false;
 
-    if (mprotect(reinterpret_cast<void *>(page_start), protect_size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+    if (mprotect(reinterpret_cast<void *>(page_start), protect_size, PROT_READ | PROT_WRITE) != 0) {
         return false;
     }
 
