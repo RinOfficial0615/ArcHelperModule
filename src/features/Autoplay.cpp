@@ -166,17 +166,6 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
     hold_touch_stub_.SetTouchUid(cfg::autoplay::kSynthTouchHoldId);
     hold_touch_stub_.SetTimestamp(now_ms);
 
-    // Per-frame long-note touch flag reset.
-    // The game uses this state to decide whether a long note is currently held.
-    for (auto p = note_begin; p != note_end; ++p) {
-        game::LogicNote note(*p);
-        if (!note.active()) continue;
-
-        const uintptr_t typeinfo = note.typeinfo();
-        if (typeinfo != ti_arc && typeinfo != ti_hold) continue;
-        note.clearLongTouchState();
-    }
-
     std::array<uint8_t, cfg::autoplay::kMaxSynthTouches> arc_seen{};
 
     for (auto p = note_begin; p != note_end; ++p) {
@@ -184,6 +173,12 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
         if (!note.active()) continue;
 
         const uintptr_t typeinfo = note.typeinfo();
+
+        // Per-frame long-note touch flag reset.
+        // The game uses this state to decide whether a long note is currently held.
+        if (typeinfo == ti_arc || typeinfo == ti_hold) {
+            note.clearLongTouchState();
+        }
 
         if (typeinfo == ti_hold) {
             // Holds: mark head activated while within (t0, t1) and keep it touched.
@@ -288,7 +283,7 @@ void Autoplay::OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t pl
     CALL_ORIG(GameplayProcessLogicNotesHook, gameplay.addr(), play_scene_or_ctx);
 }
 
-void Autoplay::OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) {
+void Autoplay::OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) const {
     if (!touch) return;
 
     // Only forward judgements for our synthetic touches. Real player touches

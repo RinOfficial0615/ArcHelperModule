@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 
 #include "config/ModuleConfig.h"
 #include "config/NetworkBlockConfig.h"
@@ -28,26 +29,20 @@ uint8_t MethodBit(uint32_t req_type) {
     }
 }
 
-bool EndsWith(const char *s, const char *suffix) {
-    if (!s || !suffix) return false;
-    const size_t sl = std::strlen(s);
-    const size_t su = std::strlen(suffix);
-    if (sl < su) return false;
-    return std::memcmp(s + (sl - su), suffix, su) == 0;
-}
-
 bool EndsWithPath(const char *url, const char *path) {
     if (!url || !path) return false;
-    if (EndsWith(url, path)) return true;
+    std::string_view url_view(url);
+    std::string_view path_view(path);
+    if (url_view.ends_with(path_view)) return true;
 
-    const size_t n = std::strlen(path);
+    const size_t n = path_view.size();
     if (n == 0 || n >= 255) return false;
 
     char tmp[256];
     std::memcpy(tmp, path, n);
     tmp[n] = '/';
     tmp[n + 1] = '\0';
-    return EndsWith(url, tmp);
+    return url_view.ends_with(std::string_view(tmp, n + 1));
 }
 
 bool HasPathPrefix(const char *url, const char *path_prefix) {

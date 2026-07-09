@@ -1,5 +1,6 @@
 #include "manager/GameVersionManager.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 
@@ -74,12 +75,11 @@ bool GameVersionManager::MatchSetterSignature(uintptr_t offset) const {
 const cfg::GameProfile *GameVersionManager::DetectCandidateProfile() const {
     if (!lib_base_) return nullptr;
 
-    for (const auto &profile : cfg::kSupportedGameProfiles) {
-        if (MatchSetterSignature(profile.version_probe.set_app_version)) {
-            return &profile;
-        }
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(cfg::kSupportedGameProfiles, [this](const auto &profile) {
+        return MatchSetterSignature(profile.version_probe.set_app_version);
+    });
+
+    return it != cfg::kSupportedGameProfiles.end() ? &(*it) : nullptr;
 }
 
 std::string GameVersionManager::ReadLibcxxString(uintptr_t string_addr) const {

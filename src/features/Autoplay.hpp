@@ -98,7 +98,7 @@ private:
 
     // Hook callbacks.
     void OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t play_scene_or_ctx);
-    void OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint);
+    void OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) const;
     void OnScoreStateApplyJudgement(uintptr_t score,
                                     uintptr_t note,
                                     int grade,

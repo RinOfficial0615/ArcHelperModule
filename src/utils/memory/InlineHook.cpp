@@ -20,7 +20,7 @@ bool InlineHook::InstallA64(uintptr_t target, void *hook_fn, void **orig_fn_out)
 
     void *tramp = mmap(nullptr,
                        kTrampSize,
-                       PROT_READ | PROT_WRITE | PROT_EXEC,
+                       PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANONYMOUS,
                        -1,
                        0);
@@ -32,6 +32,11 @@ bool InlineHook::InstallA64(uintptr_t target, void *hook_fn, void **orig_fn_out)
     detail::WriteA64AbsoluteJumpStub(tramp_jmp, target + 16);
     __builtin___clear_cache(reinterpret_cast<char *>(tramp),
                             reinterpret_cast<char *>(reinterpret_cast<uintptr_t>(tramp) + 32));
+
+    if (mprotect(tramp, kTrampSize, PROT_READ | PROT_EXEC) != 0) {
+        munmap(tramp, kTrampSize);
+        return false;
+    }
 
     if (!Patcher::PatchA64AbsoluteJump(target, reinterpret_cast<uintptr_t>(hook_fn))) {
         munmap(tramp, kTrampSize);

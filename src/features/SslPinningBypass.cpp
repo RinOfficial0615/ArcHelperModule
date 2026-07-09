@@ -41,9 +41,9 @@ void SslPinningBypass::EnsurePatched() {
     }
 
     // Patch A: CBZ X20, skip → B skip
-    mem::Write<uint32_t>(addr_a, 0x14000007);
+    mem::Patcher::PatchU32WithPerms(addr_a, 0x14000007);
     // Patch B: BL sub_XXXX → NOP
-    mem::Write<uint32_t>(addr_b, 0xD503201F);
+    mem::Patcher::PatchU32WithPerms(addr_b, 0xD503201F);
 
     patched_ = true;
     ARC_LOGI("SslPinningBypass: patched @ %p / %p",
