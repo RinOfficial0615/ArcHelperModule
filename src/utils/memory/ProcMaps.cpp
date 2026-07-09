@@ -9,11 +9,6 @@
 namespace arc_autoplay::mem {
 namespace {
 
-bool EndsWith(std::string_view s, std::string_view suffix) {
-    if (s.size() < suffix.size()) return false;
-    return memcmp(s.data() + (s.size() - suffix.size()), suffix.data(), suffix.size()) == 0;
-}
-
 std::string_view TrimSpaces(std::string_view sv) {
     while (!sv.empty()) {
         const char c = sv.front();
@@ -101,7 +96,7 @@ uintptr_t ProcMaps::FindLibraryBase(std::string_view soname) {
         if (!ParseProcMapsLine(line, &start, &end, &off, &perms, &path)) continue;
         (void)end;
         (void)perms;
-        if (!EndsWith(path, soname)) continue;
+        if (!path.ends_with(soname)) continue;
 
         const uintptr_t candidate = start - off;
         if (base == 0 || candidate < base) base = candidate;
@@ -129,7 +124,7 @@ bool ProcMaps::GetLibraryExecRanges(std::string_view soname,
         if (!ParseProcMapsLine(line, &start, &end, &off, &perms, &path)) continue;
         (void)off;
         if ((perms & PROT_EXEC) == 0) continue;
-        if (!EndsWith(path, soname)) continue;
+        if (!path.ends_with(soname)) continue;
         if (out_count >= out_ranges.size()) break;
 
         out_ranges[out_count++] = MemRange{start, end};

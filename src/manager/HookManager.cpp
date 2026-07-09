@@ -1,5 +1,6 @@
 #include "manager/HookManager.hpp"
 
+#include <algorithm>
 #include <cinttypes>
 
 #include "config/ModuleConfig.h"
@@ -94,17 +95,17 @@ bool HookManager::InstallInlineHookImpl(uintptr_t &addr,
 }
 
 HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) {
-    for (auto &rec : inline_hooks_) {
-        if (rec.hook_handler == hook_handler) return &rec;
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(inline_hooks_, [hook_handler](const auto &rec) {
+        return rec.hook_handler == hook_handler;
+    });
+    return it != inline_hooks_.end() ? &(*it) : nullptr;
 }
 
 const HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) const {
-    for (const auto &rec : inline_hooks_) {
-        if (rec.hook_handler == hook_handler) return &rec;
-    }
-    return nullptr;
+    auto it = std::ranges::find_if(inline_hooks_, [hook_handler](const auto &rec) {
+        return rec.hook_handler == hook_handler;
+    });
+    return it != inline_hooks_.end() ? &(*it) : nullptr;
 }
 
 bool HookManager::HasOriginalForHook(void *hook_handler) const {
@@ -140,10 +141,7 @@ void HookManager::RestoreAllInlineHooks() {
 }
 
 bool HookManager::IsAllZeros(const std::array<uint8_t, 16> &sig) {
-    for (uint8_t b : sig) {
-        if (b != 0) return false;
-    }
-    return true;
+    return std::ranges::all_of(sig, [](uint8_t b) { return b == 0; });
 }
 
 } // namespace arc_autoplay
