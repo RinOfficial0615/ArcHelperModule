@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 #include "config/ModuleConfig.h"
 #include "utils/Log.h"
@@ -10,6 +11,32 @@
 
 namespace arc_helper {
 namespace {
+
+constexpr std::string_view kDefaultConfigJson = R"json({
+  "autoplay": true,
+  "networkLogger": false,
+  "networkBlock": true,
+  "sslPinningBypass": false,
+  "customCharts": true
+}
+)json";
+
+bool WriteDefaultConfig(const std::string &path) {
+    const std::string temporary_path = path + ".tmp";
+    {
+        std::ofstream defaults(temporary_path, std::ios::binary | std::ios::trunc);
+        if (!defaults) return false;
+        defaults.write(kDefaultConfigJson.data(),
+                       static_cast<std::streamsize>(kDefaultConfigJson.size()));
+        if (!defaults) return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::rename(temporary_path, path, ec);
+    if (!ec) return true;
+    std::filesystem::remove(temporary_path, ec);
+    return false;
+}
 
 std::string DetectProcessPackage() {
     std::ifstream cmdline("/proc/self/cmdline", std::ios::binary);
@@ -83,17 +110,10 @@ void RuntimeConfig::LoadLocked() {
     const std::string path = root_dir_ + "/config.json";
     std::ifstream file(path, std::ios::binary);
     if (!file) {
-        ARC_LOGI("RuntimeConfig: %s absent; using defaults", path.c_str());
-        std::ofstream defaults(path, std::ios::binary | std::ios::trunc);
-        if (defaults) {
-            defaults << "{\n"
-                     << "  \"autoplay\": true,\n"
-                     << "  \"networkLogger\": false,\n"
-                     << "  \"networkBlock\": true,\n"
-                     << "  \"sslPinningBypass\": false,\n"
-                     << "  \"customCharts\": true\n"
-                     << "}\n";
-        }
+        const bool generated = WriteDefaultConfig(path);
+        ARC_LOGI("RuntimeConfig: %s absent; beautified defaults %s at %s",
+                 path.c_str(), generated ? "generated" : "could not be generated",
+                 path.c_str());
         return;
     }
 

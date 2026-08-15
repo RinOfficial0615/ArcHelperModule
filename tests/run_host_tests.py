@@ -35,6 +35,35 @@ compile_cmd = [
 ]
 subprocess.run(compile_cmd, check=True, cwd=ROOT)
 
+runtime_config_exe = BUILD / "runtime_config_host_test.exe"
+runtime_config_compile = [
+    "g++",
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-DARC_HELPER_HOST_TEST",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    "-I",
+    str(ROOT),
+    str(ROOT / "tests" / "runtime_config_host_test.cpp"),
+    str(ROOT / "src" / "config" / "RuntimeConfig.cpp"),
+    str(ROOT / "src" / "utils" / "MiniJson.cpp"),
+    "-o",
+    str(runtime_config_exe),
+]
+subprocess.run(runtime_config_compile, check=True, cwd=ROOT)
+defaults_root = BUILD / "runtime-config-root"
+subprocess.run([str(runtime_config_exe), str(defaults_root)], check=True, cwd=ROOT)
+print("validated beautified default config generation when config.json is absent")
+
 valid = sorted((WORKSPACE / "ArcCreate" / "arcpkg-samples").glob("*.arcpkg"))
 valid += sorted((WORKSPACE / "ArcCreate" / "raw-zip-samples").glob("*.zip"))
 if len(valid) < 7:
