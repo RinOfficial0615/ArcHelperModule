@@ -6,7 +6,7 @@
 #include "config/AutoplayConfig.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay::game {
+namespace arc_helper::game {
 
 class Object {
 public:
@@ -128,4 +128,4 @@ public:
     int sys_id() const { return Read<int32_t>(cfg::autoplay::kTouch_sys_id_i32_off); }
 };
 
-} // namespace arc_autoplay::game
+} // namespace arc_helper::game

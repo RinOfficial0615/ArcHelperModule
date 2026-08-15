@@ -9,7 +9,7 @@
 #include "manager/HookManager.hpp"
 #include "manager/network/NetworkHandler.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Intercepts network requests and dispatches them to registered handlers.
 //
@@ -31,6 +31,7 @@ public:
 
     // Register one handler. Higher priority runs earlier.
     bool RegisterHandler(const char *name, int priority, HandlerFn fn);
+    bool HooksInstalled() const { return hooks_installed_; }
 
     // Utilities available to handlers.
     static const char *HttpMethodStr(uint32_t request_type);
@@ -79,4 +80,4 @@ private:
     bool hooks_installed_ = false;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

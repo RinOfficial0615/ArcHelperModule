@@ -5,13 +5,14 @@
 #include <cstdint>
 #include <cstring>
 
-namespace arc_autoplay::cfg {
+namespace arc_helper::cfg {
 
 enum class GameVersionId : uint8_t {
     kUnknown = 0,
     k61211c,
     k6132f,
     k6140c,
+    k6162c,
 };
 
 struct VersionProbeOffsets {
@@ -45,6 +46,17 @@ struct SslPinsOffsets {
     uintptr_t tail_call = 0;    // BL sub_XXXX → NOP
 };
 
+struct CustomChartsOffsets {
+    uintptr_t songlist_parser = 0;
+    uintptr_t asset_bundle_loader = 0;
+};
+
+struct FeatureCapabilities {
+    bool autoplay = false;
+    bool network = false;
+    bool custom_charts = false;
+};
+
 struct GameProfile {
     GameVersionId id = GameVersionId::kUnknown;
     const char *version_name = nullptr;
@@ -52,9 +64,11 @@ struct GameProfile {
     AutoplayOffsets autoplay{};
     NetworkOffsets network{};
     SslPinsOffsets ssl_pins{};
+    CustomChartsOffsets custom_charts{};
+    FeatureCapabilities capabilities{};
 };
 
-inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
+inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
     {
         .id = GameVersionId::k61211c,
         .version_name = "6.12.11c",
@@ -85,6 +99,7 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
             .skip_cbz = 0xBBCB24,
             .tail_call = 0xBBF3F0,
         },
+        .capabilities = {.autoplay = true, .network = true},
     },
     {
         .id = GameVersionId::k6132f,
@@ -113,6 +128,7 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
             .curl_easy_setopt = 0x0D8FD08,
         },
         .ssl_pins = {},
+        .capabilities = {.autoplay = true, .network = true},
     },
     {
         .id = GameVersionId::k6140c,
@@ -144,6 +160,40 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
             .skip_cbz = 0x10D462C,
             .tail_call = 0x10D6EF8,
         },
+        .capabilities = {.autoplay = true, .network = true},
+    },
+    {
+        .id = GameVersionId::k6162c,
+        .version_name = "6.16.2c",
+        .version_probe = {
+            .set_app_version = 0x896058,
+            .app_version_string = 0x1A9C880,
+        },
+        .autoplay = {
+            .gameplay_process_logic_notes = 0xBEE260,
+            .gameplay_try_tap_judgement_for_touch = 0x184FBD4,
+            .score_state_apply_judgement = 0x745BC4,
+            .score_state_apply_miss = 0x1361DE4,
+            .show_judgement_effect_at_note = 0x103A07C,
+            .note_effect_on_miss = 0x14A948C,
+            .note_effect_on_judgement = 0xA193CC,
+            .logic_color_accepts_touch = 0xE59C90,
+            .patch_process_logic_notes_add64_a = 0xBEE748,
+            .patch_process_logic_notes_add64_b = 0xBEE800,
+            .patch_process_logic_notes_addc8 = 0xBEE850,
+            .typeinfo_logic_hold_note = 0x1979468,
+            .typeinfo_logic_arc_note = 0x1A10D78,
+        },
+        .network = {
+            .httpclient_process_request = 0x17E9698,
+            .curl_easy_setopt = 0x778FD0,
+        },
+        .ssl_pins = {},
+        .custom_charts = {
+            .songlist_parser = 0xCA2280,
+            .asset_bundle_loader = 0x100F3E8,
+        },
+        .capabilities = {.autoplay = true, .network = true, .custom_charts = true},
     },
 }};
 
@@ -158,4 +208,4 @@ inline const GameProfile *FindGameProfileByVersionString(const char *version) {
     return it != kSupportedGameProfiles.end() ? &(*it) : nullptr;
 }
 
-} // namespace arc_autoplay::cfg
+} // namespace arc_helper::cfg

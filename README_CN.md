@@ -1,16 +1,16 @@
-# ArcAutoplayModule
+# ArcHelperModule
 
 Language: [English](README.md) | 简体中文
 
-Arcaea 自动打歌模块。支持 6.12.11c / 6.13.2f / 6.14.0c（arm64）。
+Arcaea 辅助模块，提供自动打歌、网络控制与本地自定义谱面加载。支持 6.12.11c / 6.13.2f / 6.14.0c / 6.16.2c（arm64）；自定义谱面从 6.16.2c 开始支持。
 
 提供 Zygisk 和 JNI 两种注入方式：你可以把编译出的 so 塞进 apk 改 dex 加载，也可以直接装 Zygisk 模块。
 
 ## 环境
 
-- Android NDK r28+（构建脚本自动选最新版；低于 r28 会报错）
+- Android NDK r29+（构建脚本自动选最新版；r28 及以下会报错）
 - 已启用 Zygisk 的设备
-- Arcaea 6.12.11c、6.13.2f 或 6.14.0c
+- Arcaea 6.12.11c、6.13.2f、6.14.0c 或 6.16.2c
 
 ## 构建
 
@@ -26,22 +26,27 @@ git submodule update --init --recursive
 ./build.ps1 --rel
 ```
 
-产物：`build/ArcAutoplayModule.zip`
+产物：`build/ArcHelperModule.zip`
 
 ## 功能
 
-| 功能 | 开关 (ModuleConfig.h) | 说明 |
-|------|----------------------|------|
-| 自动打歌 | `kAutoplayEnabled` | 接管蛇和长条 touch，强制 Pure，精简特效 |
-| 网络日志 | `kNetworkLoggerEnabled` | 审计全部 HTTP 请求/响应 |
-| 网络拦截 | `kNetworkBlockEnabled` | 屏蔽上传分数/世界模式等请求 |
-| SSL 反抓包 | `kDisableSslPinsEnabled` | 去掉 SSL pinning，默认关闭 |
+| 功能 | `config.json` 键 | 说明 |
+|------|-------------------|------|
+| 自动打歌 | `autoplay` | 接管蛇和长条 touch，强制 Pure，精简特效 |
+| 网络日志 | `networkLogger` | 审计全部 HTTP 请求/响应，默认关闭 |
+| 常规网络拦截 | `networkBlock` | 屏蔽上传分数/世界模式等规则；不影响自定义会话的强制隔离 |
+| SSL 反抓包 | `sslPinningBypass` | 去掉有完整 patch profile 的版本上的 SSL pinning，默认关闭 |
+| 自定义谱面 | `customCharts` | 启动时加载 `.arcpkg` 与 raw ZIP；本地会话强制阻断全部网络 |
 
 ## 运行时版本识别
 
 模块加载后不会立刻装 hook。`GameVersionManager` 先探测游戏版本，等原生 `appVersion` 确认匹配后才会激活。不支持的版本会停在"已检测"状态，不会误用错误偏移。
 
 ## 配置位置
+
+运行时目录：`Android/data/<包名>/files/ArcHelper/`。模块会创建默认 `config.json`，并在启动时扫描 `charts/`；导入结果写入 `manifest.json` 与 `import-report.json`。
+
+配置和谱面目录每个进程只读取一次。损坏的全局配置会整体回退到默认值。raw ZIP 最低只需音频和 AFF；缺失元数据时使用 `side=1`、`bg=base_conflict`、官方默认封面及确定性标题/BPM。首版自定义难度槽位为 `0..3`。
 
 - `src/config/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
 - `src/config/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
@@ -58,3 +63,5 @@ git submodule update --init --recursive
 - 项目结构：`docs/project-structure.md`
 - 版本支持：`docs/version-support.md`
 - 偏移参考：`docs/6.12.11c-offsets.md`
+- 6.16.2c 偏移证据：`docs/6.16.2c-offsets_CN.md`
+- 设备测试：`DEVICE_TEST_CHECKLIST_CN.md`

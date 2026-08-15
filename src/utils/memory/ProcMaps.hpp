@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 struct MemRange {
     uintptr_t start;
@@ -23,4 +23,4 @@ public:
     static bool IsExecutable(uintptr_t addr);
 };
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

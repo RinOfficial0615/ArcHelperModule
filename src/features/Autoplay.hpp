@@ -8,7 +8,7 @@
 #include "features/Feature.hpp"
 #include "GameTypes.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Autoplay feature.
 //
@@ -91,7 +91,7 @@ private:
     using NoteEffectOnJudgementFn = int64_t (*)(uintptr_t self, uintptr_t note, unsigned int kind, int early_late);
     using NoteEffectOnMissFn = int64_t (*)(uintptr_t self, uintptr_t note);
 
-    explicit Autoplay(bool enabled);
+    Autoplay(bool autoplay_enabled, bool lifecycle_enabled);
 
     void EnsureInstalled();
     void TryInstallHooks(const cfg::GameProfile &profile);
@@ -178,6 +178,8 @@ private:
     std::array<SynthTouch, cfg::autoplay::kMaxSynthTouches> touches_{};
     bool touches_inited_ = false;
     bool hook_setup_done_ = false;
+    bool autoplay_enabled_ = false;
+    bool lifecycle_enabled_ = false;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

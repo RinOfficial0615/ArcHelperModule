@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 template <typename T>
 inline T Read(uintptr_t addr) {
@@ -14,4 +14,4 @@ inline void Write(uintptr_t addr, T value) {
     *reinterpret_cast<T *>(addr) = value;
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

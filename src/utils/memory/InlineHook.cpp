@@ -8,7 +8,7 @@
 #include "utils/memory/PatchHelpers.hpp"
 #include "utils/memory/Patcher.hpp"
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 namespace {
 
 constexpr size_t kTrampSize = 64;
@@ -55,4 +55,4 @@ bool InlineHook::RestoreA64(uintptr_t target, void *orig_fn) {
     return ok;
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

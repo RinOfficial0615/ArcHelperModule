@@ -9,7 +9,7 @@
 #include "utils/memory/PatchHelpers.hpp"
 #include "utils/memory/ProcMaps.hpp"
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 namespace {
 
 template <typename PatchFn>
@@ -89,4 +89,4 @@ bool Patcher::PatchA64ReturnFalse(uintptr_t addr) {
     });
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

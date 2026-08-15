@@ -6,7 +6,7 @@
 
 #include "utils/memory/ProcMaps.hpp"
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 bool IsAddrInLibraryExec(uintptr_t addr, std::string_view soname) {
     if (!addr) return false;
@@ -34,4 +34,4 @@ bool IsAddrInLibraryExec(uintptr_t addr, std::string_view soname) {
     return ProcMaps::IsExecutable(addr);
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

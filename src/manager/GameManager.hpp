@@ -3,7 +3,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 class GameManager {
 public:
@@ -18,4 +18,4 @@ private:
     std::atomic<uintptr_t> game_lib_base_{0};
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

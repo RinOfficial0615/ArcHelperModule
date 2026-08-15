@@ -3,7 +3,7 @@
 #if __has_include(<jni.h>)
 #include <jni.h>
 #else
-#define ARC_AUTOPLAY_FWD_DECLARE_JNI 1
+#define ARC_HELPER_FWD_DECLARE_JNI 1
 #endif
 
 #include <cstdint>
@@ -12,9 +12,9 @@
 #include "config/GameProfile.hpp"
 #include "manager/HookManager.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
-#if ARC_AUTOPLAY_FWD_DECLARE_JNI
+#if ARC_HELPER_FWD_DECLARE_JNI
 struct _JNIEnv;
 using JNIEnv = _JNIEnv;
 
@@ -71,4 +71,4 @@ private:
     bool resolved_callback_fired_ = false;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

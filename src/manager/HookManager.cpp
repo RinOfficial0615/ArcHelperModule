@@ -5,7 +5,7 @@
 
 #include "config/ModuleConfig.h"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 HookManager &HookManager::Instance() {
     static HookManager manager;
@@ -144,4 +144,4 @@ bool HookManager::IsAllZeros(const std::array<uint8_t, 16> &sig) {
     return std::ranges::all_of(sig, [](uint8_t b) { return b == 0; });
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

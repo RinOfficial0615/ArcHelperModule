@@ -6,7 +6,7 @@
 
 #include <sys/mman.h>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 namespace {
 
 std::string_view TrimSpaces(std::string_view sv) {
@@ -175,4 +175,4 @@ bool ProcMaps::IsExecutable(uintptr_t addr) {
     return GetPermissions(addr, perms) && ((perms & PROT_EXEC) != 0);
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

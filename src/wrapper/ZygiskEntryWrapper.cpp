@@ -6,13 +6,14 @@
 #include <unistd.h>
 
 #include "wrapper/WrapperCommon.hpp"
+#include "config/RuntimeConfig.hpp"
 #include "zygisk.hpp"
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;
 using zygisk::ServerSpecializeArgs;
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 namespace {
 
@@ -65,6 +66,7 @@ jstring Runtime_nativeLoad_hook(JNIEnv *env,
     }
 
     auto ret = CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, java_loader);
+    env->ReleaseStringUTFChars(java_file_name, lib_name);
     if (ret != nullptr) return ret;
 
     if (is_target) {
@@ -77,7 +79,6 @@ jstring Runtime_nativeLoad_hook(JNIEnv *env,
         }
     }
 
-    env->ReleaseStringUTFChars(java_file_name, lib_name);
     return ret;
 }
 
@@ -106,7 +107,7 @@ bool IsModuleDisabled(Api *api) {
 
 } // namespace
 
-class ArcAutoplayZygiskWrapper : public zygisk::ModuleBase {
+class ArcHelperZygiskWrapper : public zygisk::ModuleBase {
 public:
     void onLoad(Api *api, JNIEnv *env) override {
         if (!api || !env) return;
@@ -139,6 +140,7 @@ public:
         }
 
         const bool enable_module = wrapper::IsTargetPackage(package_name);
+        if (enable_module) RuntimeConfig::Instance().SetPackageName(package_name);
         env_->ReleaseStringUTFChars(args->nice_name, package_name);
 
         if (!enable_module) {
@@ -155,6 +157,6 @@ private:
     JNIEnv *env_ = nullptr;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper
 
-REGISTER_ZYGISK_MODULE(arc_autoplay::ArcAutoplayZygiskWrapper)
+REGISTER_ZYGISK_MODULE(arc_helper::ArcHelperZygiskWrapper)

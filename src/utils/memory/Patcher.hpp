@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 class Patcher {
 public:
@@ -17,4 +17,4 @@ public:
     static bool PatchA64ReturnFalse(uintptr_t addr);
 };
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

@@ -1,9 +1,9 @@
 #pragma once
 
-namespace arc_autoplay::cfg::module {
+namespace arc_helper::cfg::module {
 
 // Shared module identity.
-inline constexpr const char *kLogTag = "ArcAutoplay";
+inline constexpr const char *kLogTag = "ArcHelper";
 inline constexpr const char *kRuntimeClass = "java/lang/Runtime";
 inline constexpr const char *kLibName = "libcocos2dcpp.so";
 
@@ -18,6 +18,7 @@ inline constexpr const char *kTargetPackages[] = {
 inline constexpr bool kAutoplayEnabled = true;
 inline constexpr bool kNetworkLoggerEnabled = true;
 inline constexpr bool kNetworkBlockEnabled = true;
-inline constexpr bool kDisableSslPinsEnabled = false;
+// Compile the optional feature in; RuntimeConfig keeps it disabled by default.
+inline constexpr bool kDisableSslPinsEnabled = true;
 
-} // namespace arc_autoplay::cfg::module
+} // namespace arc_helper::cfg::module

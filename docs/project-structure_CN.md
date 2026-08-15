@@ -17,10 +17,17 @@ Language: [English](project-structure.md) | 简体中文
 - `src/features/NetworkLogger.{hpp,cpp}` — 高优先级请求/响应审计
 - `src/features/NetworkBlock.{hpp,cpp}` — 低优先级 URL 拦截策略
 - `src/features/SslPinningBypass.{hpp,cpp}` — SSL 证书绑定移除（两处字节补丁）
+- `src/features/CustomChartManager.{hpp,cpp}` — 启动时导入 `.arcpkg`/raw ZIP、合并 songlist、维护缓存与报告
+- `src/features/AssetVirtualizer.{hpp,cpp}` — 虚拟 songlist/自定义资源及官方默认资源重定向
+- `src/features/CustomSession.{hpp,cpp}` — 自定义谱面会话状态，用于强制全网络隔离
 - `src/GameTypes.hpp` — `Gameplay`、`LogicArcNote`、`LogicHoldNote` 等轻量封装
+- `src/config/RuntimeConfig.{hpp,cpp}` — 启动时读取固定目录中的运行时配置
 - `src/utils/MemoryUtils.hpp` — 内存工具汇总头
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`、`AddressResolver`、`Patcher`、`InlineHook`
 - `src/utils/Log.h` — `ARC_LOGI` / `ARC_LOGE` 宏
+- `src/utils/MiniJson.{hpp,cpp}` — 严格、受限的 JSON 解析/转义工具
+- `src/utils/Sha256.{hpp,cpp}` — 包内容哈希与稳定 ID 支持
+- `src/utils/ZipArchive.{hpp,cpp}` — 带路径、大小、CRC 与压缩率检查的 ZIP 读取器
 - `src/config/GameStructs.hpp` — 按版本模板化的布局 struct（显式 padding，`offsetof` 校验）
 - `src/config/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
@@ -32,5 +39,6 @@ Language: [English](project-structure.md) | 简体中文
 1. Wrapper 检测到 `libcocos2dcpp.so` 就绪 → 缓存基址至 `GameManager`。
 2. Zygisk 路径校验包名；JNI 路径跳过包名校验。
 3. `GameVersionManager` 判断候选版本，等待真实 `appVersion` 确认。
-4. 版本确认后，wrapper 回调实例化全部功能单例。
-5. 各功能按当前 profile 通过 `HookManager` 安装 Hook。
+4. 版本确认后，wrapper 回调实例化功能单例并安装网络隔离 Hook。
+5. 仅当 profile 声明自定义谱面能力且网络隔离可用时，扫描固定目录、导入包并安装资源虚拟化。
+6. 各功能按启动时配置和当前 profile 通过 `HookManager` 安装 Hook；配置在本次进程内不再热加载。

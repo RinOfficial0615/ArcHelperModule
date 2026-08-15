@@ -4,7 +4,7 @@
 
 #include "utils/memory/MemoryPrimitives.hpp"
 
-namespace arc_autoplay::mem::detail {
+namespace arc_helper::mem::detail {
 
 // Writes a 16-byte absolute jump sequence:
 //   ldr x17, #8
@@ -16,4 +16,4 @@ inline void WriteA64AbsoluteJumpStub(uintptr_t at, uintptr_t dst) {
     Write<uint64_t>(at + 8, static_cast<uint64_t>(dst));
 }
 
-} // namespace arc_autoplay::mem::detail
+} // namespace arc_helper::mem::detail

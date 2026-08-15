@@ -110,7 +110,7 @@ function Select-NewestNdkUnderRoot([string]$ndkRoot) {
 function Show-Help {
     @"
 Usage: .\build.ps1 [options]
-Build ArcAutoplayModule using Android NDK
+Build ArcHelperModule using Android NDK
 
 Options:
     --rel                       Build in RELEASE mode
@@ -131,7 +131,8 @@ while ($i -lt $args.Length) {
             $i++
         }
         "--rebuild" {
-            if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
+            $BuildDir = Join-Path $PSScriptRoot "build"
+            if (Test-Path $BuildDir) { Remove-Item -LiteralPath $BuildDir -Recurse -Force }
             $ExtraNdkFlags += " -B "
             $i++
         }
@@ -166,7 +167,7 @@ if (-not (Test-Path "build")) {
     New-Item -ItemType Directory -Path "build" | Out-Null
 }
 
-Write-LogInfo "Building ArcAutoplayModule in $([char]27)[36m$BuildMode$([char]27)[0m mode"
+Write-LogInfo "Building ArcHelperModule in $([char]27)[36m$BuildMode$([char]27)[0m mode"
 
 if ([string]::IsNullOrWhiteSpace($NdkHome)) {
     $SdkRoot = $env:ANDROID_SDK_ROOT
@@ -196,7 +197,7 @@ if (-not $Newest) {
 }
 
 if ($Newest.Version.Major -le 28) {
-    Write-LogError "Newest installed NDK is $($Newest.Version) (<= r28). Install r28+ under: $SearchRoot"
+    Write-LogError "Newest installed NDK is $($Newest.Version) (<= r28). Install r29+ under: $SearchRoot"
     exit 1
 }
 
@@ -220,7 +221,7 @@ if (-not $UsingVer) {
     exit 1
 }
 if ($UsingVer.Major -le 28) {
-    Write-LogError "Selected NDK is $UsingVer (<= r28). Install r28+ and/or update ANDROID_NDK_HOME."
+    Write-LogError "Selected NDK is $UsingVer (<= r28). Install r29+ and/or update ANDROID_NDK_HOME."
     exit 1
 }
 
@@ -265,7 +266,7 @@ if ($BuildMode -eq "RELEASE") {
     Write-LogInfo "Stripping libraries for release"
     $Stripper = Join-Path $NdkHome "toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe"
     if (Test-Path $Stripper) {
-        & $Stripper -s build/libs/arm64-v8a/libarc_autoplay.so
+        & $Stripper -s build/libs/arm64-v8a/libarc_helper.so
     }
 }
 
@@ -273,10 +274,10 @@ $TmpDir = "build/module_tmp"
 if (Test-Path $TmpDir) { Remove-Item -Recurse -Force $TmpDir }
 New-Item -ItemType Directory -Path "$TmpDir/zygisk" | Out-Null
 
-Copy-Item "build/libs/arm64-v8a/libarc_autoplay.so" -Destination "$TmpDir/zygisk/arm64-v8a.so"
+Copy-Item "build/libs/arm64-v8a/libarc_helper.so" -Destination "$TmpDir/zygisk/arm64-v8a.so"
 Copy-Item "module.prop" -Destination "$TmpDir/"
 
-$ZipPath = "build/ArcAutoplayModule.zip"
+$ZipPath = "build/ArcHelperModule.zip"
 if (Test-Path $ZipPath) { Remove-Item $ZipPath }
 Compress-Archive -Path "$TmpDir\*" -DestinationPath $ZipPath
 

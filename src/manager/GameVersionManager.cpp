@@ -8,7 +8,7 @@
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 namespace {
 
 constexpr size_t kMaxVersionStringLen = 64;
@@ -186,4 +186,4 @@ void GameVersionManager::SetAppVersionHook(JNIEnv *env, jobject receiver, jstrin
     Instance().OnSetAppVersion(env, receiver, version_string);
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

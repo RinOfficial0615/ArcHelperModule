@@ -5,7 +5,7 @@
 
 #include "utils/memory/ProcMaps.hpp"
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 namespace {
 
 uintptr_t FindUniqueBytesInRanges(const MemRange *ranges,
@@ -66,4 +66,4 @@ uintptr_t AddressResolver::ResolveBySignature(uintptr_t hint_offset,
     return FindUniqueBytesInRanges(exec_ranges.data(), exec_count, sig, sig_len, 4, nullptr);
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

@@ -6,9 +6,11 @@
 
 #include "config/ModuleConfig.h"
 #include "config/NetworkBlockConfig.h"
+#include "config/RuntimeConfig.hpp"
+#include "features/CustomSession.hpp"
 #include "utils/Log.h"
 
-namespace arc_autoplay {
+namespace arc_helper {
 namespace {
 
 uint32_t g_blocked_count = 0;
@@ -73,6 +75,11 @@ bool MatchRule(const cfg::network_block::NetworkBlockRule &rule, const char *url
 bool ShouldBlock(const NetworkManager::HandlerArgs &args, const char **out_reason) {
     if (out_reason) *out_reason = "none";
 
+    if (CustomSession::Instance().IsActive()) {
+        if (out_reason) *out_reason = "custom-session-all-network";
+        return true;
+    }
+    if (!RuntimeConfig::Instance().NetworkBlockEnabled()) return false;
     if (cfg::network_block::kBlockAllRequests) {
         if (out_reason) *out_reason = "all";
         return true;
@@ -105,7 +112,10 @@ NetworkBlock &NetworkBlock::Instance() {
         static NetworkBlock disabled(false);
         return disabled;
     } else {
-        static NetworkBlock enabled(true);
+        RuntimeConfig::Instance().EnsureLoaded();
+        // Custom-chart isolation is mandatory even when ordinary URL rules are disabled.
+        static NetworkBlock enabled(RuntimeConfig::Instance().NetworkBlockEnabled() ||
+                                    RuntimeConfig::Instance().CustomChartsEnabled());
         return enabled;
     }
 }
@@ -151,4 +161,4 @@ bool NetworkBlock::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
     return true;
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

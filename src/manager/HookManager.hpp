@@ -9,7 +9,7 @@
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 class HookManager {
 public:
@@ -109,7 +109,7 @@ private:
     std::vector<InlineHookRecord> inline_hooks_{};
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper
 
 #define CALL_ORIG(func, ...) \
-    arc_autoplay::HookManager::CallOriginal<func>(func, ##__VA_ARGS__)
+    arc_helper::HookManager::CallOriginal<func>(func, ##__VA_ARGS__)

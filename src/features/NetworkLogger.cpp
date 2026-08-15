@@ -2,9 +2,10 @@
 
 #include "config/ModuleConfig.h"
 #include "config/NetworkBlockConfig.h"
+#include "config/RuntimeConfig.hpp"
 #include "utils/Log.h"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 namespace {
 
@@ -116,7 +117,8 @@ NetworkLogger &NetworkLogger::Instance() {
         static NetworkLogger disabled(false);
         return disabled;
     } else {
-        static NetworkLogger enabled(true);
+        RuntimeConfig::Instance().EnsureLoaded();
+        static NetworkLogger enabled(RuntimeConfig::Instance().NetworkLoggerEnabled());
         return enabled;
     }
 }
@@ -157,4 +159,4 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
     return false;
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

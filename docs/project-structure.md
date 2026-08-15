@@ -17,10 +17,17 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/features/NetworkLogger.{hpp,cpp}` — high-priority request/response audit
 - `src/features/NetworkBlock.{hpp,cpp}` — low-priority URL block policy
 - `src/features/SslPinningBypass.{hpp,cpp}` — SSL pin removal (two byte-patches)
+- `src/features/CustomChartManager.{hpp,cpp}` — startup `.arcpkg`/raw ZIP import, songlist merge, cache and reports
+- `src/features/AssetVirtualizer.{hpp,cpp}` — virtual songlist/custom assets and official-default asset redirects
+- `src/features/CustomSession.{hpp,cpp}` — custom-chart session state used for mandatory full network isolation
 - `src/GameTypes.hpp` — thin wrappers for `Gameplay`, `LogicArcNote`, `LogicHoldNote` etc
+- `src/config/RuntimeConfig.{hpp,cpp}` — startup-only runtime configuration from the fixed data directory
 - `src/utils/MemoryUtils.hpp` — umbrella include for memory tools
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`, `AddressResolver`, `Patcher`, `InlineHook`
 - `src/utils/Log.h` — `ARC_LOGI` / `ARC_LOGE` macros
+- `src/utils/MiniJson.{hpp,cpp}` — strict, bounded JSON parsing and escaping
+- `src/utils/Sha256.{hpp,cpp}` — content hashing and stable-ID support
+- `src/utils/ZipArchive.{hpp,cpp}` — ZIP reader with path, size, CRC, and ratio validation
 - `src/config/GameStructs.hpp` — version-templated layout structs (explicit padding, `offsetof`-verified)
 - `src/config/GameProfile.hpp` — per-version function/RTTI/patch offsets
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
@@ -32,5 +39,6 @@ Language: English | [简体中文](project-structure_CN.md)
 1. Wrapper detects `libcocos2dcpp.so` → caches base in `GameManager`.
 2. Zygisk path validates package; JNI path skips package check.
 3. `GameVersionManager` identifies the candidate build and waits for the real `appVersion`.
-4. Once the version is confirmed, the wrapper callback instantiates all feature singletons.
-5. Each feature installs hooks through `HookManager` using its active runtime profile.
+4. Once the version is confirmed, the wrapper callback instantiates features and installs network-isolation hooks.
+5. Only when the profile advertises custom-chart support and network isolation is available does the module scan packages, import them, and install asset virtualization.
+6. Features install through `HookManager` according to the startup configuration and active profile; configuration is not hot-reloaded in the current process.

@@ -1,10 +1,11 @@
 #include "features/SslPinningBypass.hpp"
 
 #include "manager/GameVersionManager.hpp"
+#include "config/RuntimeConfig.hpp"
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 SslPinningBypass &SslPinningBypass::Instance() {
     static SslPinningBypass instance;
@@ -13,6 +14,8 @@ SslPinningBypass &SslPinningBypass::Instance() {
 
 SslPinningBypass::SslPinningBypass() {
     if constexpr (!cfg::module::kDisableSslPinsEnabled) return;
+    RuntimeConfig::Instance().EnsureLoaded();
+    if (!RuntimeConfig::Instance().DisableSslPinsEnabled()) return;
     EnsurePatched();
 }
 
@@ -51,4 +54,4 @@ void SslPinningBypass::EnsurePatched() {
              reinterpret_cast<void *>(addr_b));
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

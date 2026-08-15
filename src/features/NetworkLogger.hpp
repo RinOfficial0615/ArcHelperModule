@@ -3,7 +3,7 @@
 #include "features/Feature.hpp"
 #include "manager/NetworkManager.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Registers a high-priority audit handler in NetworkManager.
 //
@@ -18,4 +18,4 @@ private:
     static bool HandleNetworkRequest(NetworkManager::HandlerArgs &args);
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

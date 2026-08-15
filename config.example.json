@@ -1,0 +1,7 @@
+{
+  "autoplay": true,
+  "networkLogger": false,
+  "networkBlock": true,
+  "sslPinningBypass": false,
+  "customCharts": true
+}

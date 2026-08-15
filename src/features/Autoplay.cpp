@@ -1,26 +1,26 @@
 #include "features/Autoplay.hpp"
 
 #include "manager/GameVersionManager.hpp"
+#include "config/RuntimeConfig.hpp"
+#include "features/CustomSession.hpp"
 #include "utils/Log.h"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 Autoplay &Autoplay::Instance() {
-    if constexpr (!cfg::module::kAutoplayEnabled) {
-        static Autoplay disabled(false);
-        return disabled;
-    } else {
-        static Autoplay enabled(true);
+    RuntimeConfig::Instance().EnsureLoaded();
+    static Autoplay instance(cfg::module::kAutoplayEnabled && RuntimeConfig::Instance().AutoplayEnabled(),
+                             RuntimeConfig::Instance().CustomChartsEnabled());
 
-        // Hooks are installed lazily (and only once) after `libcocos2dcpp.so`
-        // is mapped and the base address can be resolved.
-        enabled.EnsureInstalled();
-        return enabled;
-    }
+    // The gameplay-loop hook also tracks custom-session lifecycle, so it stays
+    // installed on custom-chart profiles even when autoplay is disabled.
+    instance.EnsureInstalled();
+    return instance;
 }
 
-Autoplay::Autoplay(bool enabled) {
-    if (!enabled) return;
+Autoplay::Autoplay(bool autoplay_enabled, bool lifecycle_enabled)
+    : autoplay_enabled_(autoplay_enabled), lifecycle_enabled_(lifecycle_enabled) {
+    if (!autoplay_enabled_ && !lifecycle_enabled_) return;
     EnsureInstalled();
 }
 
@@ -33,6 +33,15 @@ void Autoplay::EnsureInstalled() {
 
     const auto *profile = version_manager.GetActiveProfile();
     if (!profile) return;
+    const bool lifecycle_available = lifecycle_enabled_ && profile->capabilities.custom_charts;
+    if (!autoplay_enabled_ && !lifecycle_available) {
+        hook_setup_done_ = true;
+        return;
+    }
+    if (autoplay_enabled_ && !profile->capabilities.autoplay) {
+        ARC_LOGE("Autoplay: capability unavailable for %s", profile->version_name);
+        return;
+    }
 
     TryInstallHooks(*profile);
 }
@@ -275,10 +284,11 @@ bool Autoplay::NoteCanApplyJudgement(game::LogicNote note, int judge_time, int i
 
 void Autoplay::OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t play_scene_or_ctx) {
     // This hook runs every logic tick and is our main timebase.
+    CustomSession::Instance().MarkPlaying();
     const int now_ms = gameplay.timer().NowMs();
     last_now_ms_ = now_ms;
 
-    AutoplayLongNotesTick(gameplay, now_ms);
+    if (autoplay_enabled_) AutoplayLongNotesTick(gameplay, now_ms);
 
     CALL_ORIG(GameplayProcessLogicNotesHook, gameplay.addr(), play_scene_or_ctx);
 }
@@ -399,6 +409,20 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
 
     const auto &offsets = profile.autoplay;
 
+    hook_manager_.InstallInlineHook(addr_gameplay_process_logic_notes_,
+                                    offsets.gameplay_process_logic_notes,
+                                    cfg::autoplay::kSig_Gameplay_processLogicNotes,
+                                    GameplayProcessLogicNotesHook,
+                                    "Gameplay_processLogicNotes");
+
+    if (!autoplay_enabled_) {
+        hook_setup_done_ = hook_manager_.HasOriginalForHook(
+            reinterpret_cast<void *>(GameplayProcessLogicNotesHook));
+        ARC_LOGI("CustomSession: gameplay lifecycle hook %s",
+                 hook_setup_done_ ? "OK" : "FAILED");
+        return;
+    }
+
     if (!patched_logicnote_miss_offsets_) {
         // Patch small immediates in the logic note processing loop.
         // Offsets are provided by the active game profile.
@@ -414,21 +438,15 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
 
     hook_manager_.InstallInlineHook(addr_score_state_apply_judgement_,
                                     offsets.score_state_apply_judgement,
-                                    cfg::autoplay::kSig_ScoreState_applyJudgement,
+                                    cfg::autoplay::ScoreStateApplyJudgementSignature(profile.id),
                                     ScoreStateApplyJudgementHook,
                                     "ScoreState_applyJudgement");
 
     hook_manager_.InstallInlineHook(addr_score_state_apply_miss_,
                                     offsets.score_state_apply_miss,
-                                    cfg::autoplay::kSig_ScoreState_applyMiss,
+                                    cfg::autoplay::ScoreStateApplyMissSignature(profile.id),
                                     ScoreStateApplyMissHook,
                                     "ScoreState_applyMiss");
-
-    hook_manager_.InstallInlineHook(addr_gameplay_process_logic_notes_,
-                                    offsets.gameplay_process_logic_notes,
-                                    cfg::autoplay::kSig_Gameplay_processLogicNotes,
-                                    GameplayProcessLogicNotesHook,
-                                    "Gameplay_processLogicNotes");
 
     hook_manager_.InstallInlineHook(addr_show_judgement_effect_at_note_,
                                     offsets.show_judgement_effect_at_note,
@@ -483,4 +501,4 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
                        note_effect_on_judgement_ != nullptr;
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

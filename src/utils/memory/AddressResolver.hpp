@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <string_view>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 class AddressResolver {
 public:
@@ -22,4 +22,4 @@ private:
     uintptr_t lib_base_ = 0;
 };
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

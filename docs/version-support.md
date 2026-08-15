@@ -7,6 +7,7 @@ Language: English | [简体中文](version-support_CN.md)
 - `6.12.11c`
 - `6.13.2f`
 - `6.14.0c`
+- `6.16.2c` (full profile; custom charts)
 
 ## Runtime detection
 
@@ -21,7 +22,7 @@ Unknown builds stay in a "detected, not armed" state — the wrong offsets never
 
 1. Append a new `GameVersionId` variant to `src/config/GameProfile.hpp`.
 2. Fill in the version probe offsets (`set_app_version` + `app_version_string` global).
-3. Fill in autoplay / network / ssl_pins offsets for that build.
+3. Fill in autoplay / network / ssl_pins / custom_charts offsets and capabilities for that build.
 4. If object layouts changed, specialize the corresponding struct template in `src/config/GameStructs.hpp`.
 5. Update this file.
 

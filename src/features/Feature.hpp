@@ -4,7 +4,7 @@
 
 #include "manager/HookManager.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 class Feature {
 public:
@@ -29,4 +29,4 @@ protected:
     uintptr_t lib_base_ = 0;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

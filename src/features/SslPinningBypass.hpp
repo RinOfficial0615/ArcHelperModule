@@ -5,7 +5,7 @@
 #include "features/Feature.hpp"
 #include "config/GameProfile.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 class SslPinningBypass : public Feature {
 public:
@@ -19,4 +19,4 @@ private:
     bool patched_ = false;
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

@@ -3,7 +3,7 @@
 #include "features/Feature.hpp"
 #include "manager/NetworkManager.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Registers the lowest-priority block policy handler in NetworkManager.
 //
@@ -19,4 +19,4 @@ private:
     static bool HandleNetworkRequest(NetworkManager::HandlerArgs &args);
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

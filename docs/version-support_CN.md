@@ -7,6 +7,7 @@ Language: [English](version-support.md) | 简体中文
 - `6.12.11c`
 - `6.13.2f`
 - `6.14.0c`
+- `6.16.2c`（完整 profile；自定义谱面）
 
 ## 运行时识别
 
@@ -21,7 +22,7 @@ Language: [English](version-support.md) | 简体中文
 
 1. 在 `src/config/GameProfile.hpp` 中新增 `GameVersionId` 枚举值。
 2. 填入版本探测偏移（`set_app_version` + `app_version_string` 全局）。
-3. 填入该版本的 autoplay / network / ssl_pins 偏移。
+3. 填入该版本的 autoplay / network / ssl_pins / custom_charts 偏移与 capability。
 4. 若对象布局发生变化，在 `src/config/GameStructs.hpp` 特化对应模板。
 5. 更新本文档。
 

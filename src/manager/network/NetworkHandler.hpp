@@ -6,7 +6,7 @@
 
 #include "config/NetworkBlockConfig.h"
 
-namespace arc_autoplay::network {
+namespace arc_helper::network {
 
 enum class Phase : uint8_t {
     BeforeRequest = 0,
@@ -139,4 +139,4 @@ struct BufferView {
     BufferViewStatus status = BufferViewStatus::Empty;
 };
 
-} // namespace arc_autoplay::network
+} // namespace arc_helper::network

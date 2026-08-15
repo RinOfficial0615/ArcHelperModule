@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 
 class InlineHook {
 public:
@@ -10,4 +10,4 @@ public:
     static bool RestoreA64(uintptr_t target, void *orig_fn);
 };
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

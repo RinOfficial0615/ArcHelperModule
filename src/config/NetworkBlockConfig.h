@@ -6,7 +6,7 @@
 
 #include "config/GameStructs.hpp"
 
-namespace arc_autoplay::cfg::network_block {
+namespace arc_helper::cfg::network_block {
 
 // ---------------------------------------------------------------------------
 //  Offsets computed from `layouts::*` mirror structs (see `GameStructs.hpp`).
@@ -105,4 +105,4 @@ inline constexpr std::array<NetworkBlockRule, 9> kBlockRules = {{
     {"multiplayer/matchmaking/status (POST)", kMethodPost, RuleMatchType::PathPrefix, "/multiplayer/me/matchmaking/status"},
 }};
 
-} // namespace arc_autoplay::cfg::network_block
+} // namespace arc_helper::cfg::network_block

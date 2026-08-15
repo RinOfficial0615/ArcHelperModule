@@ -8,7 +8,7 @@
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 namespace {
 
 thread_local network::ActiveRequestCtx t_req_ctx{};
@@ -235,6 +235,11 @@ bool NetworkManager::EnsureHooksInstalled() {
     version_manager.EnsureInstalled();
     const auto *profile = version_manager.GetActiveProfile();
     if (!profile) return false;
+    if (!profile->capabilities.network || !profile->network.httpclient_process_request ||
+        !profile->network.curl_easy_setopt) {
+        ARC_LOGE("NetworkManager: capability unavailable for %s", profile->version_name);
+        return false;
+    }
 
     hook_manager_.EnsureReady();
     lib_base_ = hook_manager_.GetLibBase();
@@ -329,7 +334,7 @@ uint32_t NetworkManager::CurlEasySetoptHook(uintptr_t curl_handle, uint32_t opti
     }
 
     if (dispatch.blocked) {
-        const char *reason = args.block_reason[0] ? args.block_reason : "ArcAutoplay: blocked";
+        const char *reason = args.block_reason[0] ? args.block_reason : "ArcHelper: blocked";
         WriteCurlError(args.curl_error_buf ? args.curl_error_buf : t_req_ctx.curl_error_buf, reason);
         return cfg::network_block::kCurlSetoptRetBlocked;
     }
@@ -366,4 +371,4 @@ int64_t NetworkManager::HttpClientProcessRequestHook(uintptr_t http_client, uint
     return ret;
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper
