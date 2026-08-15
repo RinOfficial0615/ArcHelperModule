@@ -25,7 +25,7 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/utils/MemoryUtils.hpp` — umbrella include for memory tools
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`, `AddressResolver`, `Patcher`, `InlineHook`
 - `src/utils/Log.h` — `ARC_LOGI` / `ARC_LOGE` macros
-- `src/utils/MiniJson.{hpp,cpp}` — strict, bounded JSON parsing and escaping
+- `third_party/json/` — nlohmann/json submodule used for parsing and serialization
 - `src/utils/Sha256.{hpp,cpp}` — content hashing and stable-ID support
 - `src/utils/ZipArchive.{hpp,cpp}` — ZIP reader with path, size, CRC, and ratio validation
 - `src/config/GameStructs.hpp` — version-templated layout structs (explicit padding, `offsetof`-verified)
@@ -33,6 +33,10 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/ModuleConfig.h` — feature toggles, target package names
+- `module/` — Magisk/Zygisk packaging metadata, scope, and configuration example
+- `third_party/libcxx/` — Android libc++ submodule
+- `third_party/lsplt/` — LSPlt submodule
+- `third_party/zygisk.hpp` — Zygisk API header
 
 ## Initialization Flow
 

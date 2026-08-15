@@ -28,7 +28,7 @@ git submodule update --init --recursive
 
 产物：`build/ArcHelperModule.zip`
 
-`scope.txt` 会一并打包到模块根目录。每行填写一个精确包名，空行和 `#` 注释会忽略；文件存在时内容为唯一作用域，删空即停用全部目标包。文件缺失时回退到内置的三个包名。
+`module/scope.txt` 会一并打包到模块根目录。每行填写一个精确包名，空行和 `#` 注释会忽略；文件存在时内容为唯一作用域，删空即停用全部目标包。文件缺失时回退到内置的三个包名。
 
 ## 功能
 
@@ -54,7 +54,10 @@ git submodule update --init --recursive
 - `src/config/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
 - `src/config/NetworkBlockConfig.h` — 网络策略、拦截规则、字节签名
-- `scope.txt` — 模块作用域
+- `module/config.example.json` — 运行时配置示例
+- `module/scope.txt` — 打包到 ZIP 根目录的模块作用域
+
+第三方源码固定在 `third_party/json`、`third_party/libcxx` 和 `third_party/lsplt`。libcxx 子模块固定为 `d5117df3ba7704aab06c3a30b97c7529c931662b`，并作为模块的静态 C++ 运行库链接。Zygisk API 头文件位于 `third_party/zygisk.hpp`。
 
 ## AI
 

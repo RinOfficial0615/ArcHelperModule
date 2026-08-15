@@ -2,6 +2,8 @@
 #include <filesystem>
 #include <iostream>
 
+#include <nlohmann/json.hpp>
+
 #include "config/RuntimeConfig.hpp"
 #include "features/CustomChartManager.hpp"
 
@@ -22,9 +24,20 @@ int main(int argc, char **argv) {
     assert(manager.SongCountForTesting() == expected_songs);
     assert(manager.AssetCountForTesting() >= expected_songs * 4);
     const std::string songs_json = manager.SongsJsonForTesting();
+    const auto songs = nlohmann::json::parse(songs_json, nullptr, false);
+    assert(songs.is_array());
     // ArcCreate chartConstant 5.5/9.5 must retain the integer rating and '+' marker.
-    assert(songs_json.find("\"rating\":5,\"ratingPlus\":true") != std::string::npos);
-    assert(songs_json.find("\"rating\":9,\"ratingPlus\":true") != std::string::npos);
+    bool found_rating_5_plus = false;
+    bool found_rating_9_plus = false;
+    for (const auto &song : songs) {
+        for (const auto &difficulty : song.at("difficulties")) {
+            if (!difficulty.value("ratingPlus", false)) continue;
+            found_rating_5_plus |= difficulty.value("rating", -1) == 5;
+            found_rating_9_plus |= difficulty.value("rating", -1) == 9;
+        }
+    }
+    assert(found_rating_5_plus);
+    assert(found_rating_9_plus);
     // Raw ZIP 1.zip packages djmax_wagd.jpg; it must be extracted under the
     // exact 1080 background namespace used by the game.
     assert(manager.HasAssetPrefixForTesting("img/bg/1080/ahbg_"));

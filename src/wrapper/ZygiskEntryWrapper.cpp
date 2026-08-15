@@ -8,7 +8,7 @@
 #include "wrapper/WrapperCommon.hpp"
 #include "config/RuntimeConfig.hpp"
 #include "config/ScopeConfig.hpp"
-#include "zygisk.hpp"
+#include <zygisk.hpp>
 
 using zygisk::Api;
 using zygisk::AppSpecializeArgs;

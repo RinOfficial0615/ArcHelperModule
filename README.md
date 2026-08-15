@@ -53,7 +53,10 @@ Configuration and packages are read once per process. A malformed global configu
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/ModuleConfig.h` — feature toggles, target package names
-- `scope.txt` — module scope
+- `module/config.example.json` — example runtime configuration
+- `module/scope.txt` — module scope packaged at the ZIP root
+
+Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, and `third_party/lsplt`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. The Zygisk API header is stored at `third_party/zygisk.hpp`.
 
 ## AI
 

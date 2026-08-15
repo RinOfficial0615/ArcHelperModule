@@ -15,7 +15,7 @@
 #include "features/CustomChartManager.hpp"
 #include "features/CustomSession.hpp"
 #include "manager/GameManager.hpp"
-#include "third_party/lsplt/include/lsplt.hpp"
+#include <lsplt.hpp>
 #include "utils/Log.h"
 
 namespace arc_helper {

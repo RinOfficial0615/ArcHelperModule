@@ -22,14 +22,19 @@ LOCAL_SRC_FILES := \
     src/utils/memory/Patcher.cpp \
     src/utils/memory/InlineHook.cpp \
     src/utils/memory/ExecUtils.cpp \
-    src/utils/MiniJson.cpp \
     src/utils/Sha256.cpp \
     src/utils/ZipArchive.cpp \
-    third_party/lsplt/lsplt.cc \
-    third_party/lsplt/elf_util.cc
-LOCAL_C_INCLUDES := $(LOCAL_PATH) $(LOCAL_PATH)/src $(LOCAL_PATH)/third_party/lsplt/include
+    third_party/lsplt/lsplt/src/main/jni/lsplt.cc \
+    third_party/lsplt/lsplt/src/main/jni/elf_util.cc
+LOCAL_C_INCLUDES := \
+    $(LOCAL_PATH) \
+    $(LOCAL_PATH)/src \
+    $(LOCAL_PATH)/third_party/json/include \
+    $(LOCAL_PATH)/third_party \
+    $(LOCAL_PATH)/third_party/lsplt/lsplt/src/main/jni \
+    $(LOCAL_PATH)/third_party/lsplt/lsplt/src/main/jni/include
 LOCAL_STATIC_LIBRARIES := libcxx
 LOCAL_LDLIBS += -llog -landroid -lz
 include $(BUILD_SHARED_LIBRARY)
 
-include libcxx/Android.mk
+include $(LOCAL_PATH)/third_party/libcxx/Android.mk

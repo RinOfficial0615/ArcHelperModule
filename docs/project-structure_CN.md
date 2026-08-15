@@ -25,7 +25,7 @@ Language: [English](project-structure.md) | 简体中文
 - `src/utils/MemoryUtils.hpp` — 内存工具汇总头
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`、`AddressResolver`、`Patcher`、`InlineHook`
 - `src/utils/Log.h` — `ARC_LOGI` / `ARC_LOGE` 宏
-- `src/utils/MiniJson.{hpp,cpp}` — 严格、受限的 JSON 解析/转义工具
+- `third_party/json/` — 用于 JSON 解析和序列化的 nlohmann/json 子模块
 - `src/utils/Sha256.{hpp,cpp}` — 包内容哈希与稳定 ID 支持
 - `src/utils/ZipArchive.{hpp,cpp}` — 带路径、大小、CRC 与压缩率检查的 ZIP 读取器
 - `src/config/GameStructs.hpp` — 按版本模板化的布局 struct（显式 padding，`offsetof` 校验）
@@ -33,6 +33,10 @@ Language: [English](project-structure.md) | 简体中文
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
 - `src/config/NetworkBlockConfig.h` — 网络策略、拦截规则、字节签名
 - `src/config/ModuleConfig.h` — 功能开关、目标包名
+- `module/` — Magisk/Zygisk 打包元数据、作用域和配置示例
+- `third_party/libcxx/` — Android libc++ 子模块
+- `third_party/lsplt/` — LSPlt 子模块
+- `third_party/zygisk.hpp` — Zygisk API 头文件
 
 ## 初始化流程
 

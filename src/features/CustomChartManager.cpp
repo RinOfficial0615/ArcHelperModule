@@ -9,10 +9,11 @@
 #include <set>
 #include <sstream>
 
+#include <nlohmann/json.hpp>
+
 #include "config/RuntimeConfig.hpp"
 #include "features/AssetVirtualizer.hpp"
 #include "utils/Log.h"
-#include "utils/MiniJson.hpp"
 #include "utils/Sha256.hpp"
 #include "utils/ZipArchive.hpp"
 
@@ -21,6 +22,7 @@ namespace {
 
 using zip::Archive;
 using zip::Entry;
+using Json = nlohmann::json;
 
 std::string Lower(std::string value) {
     std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
@@ -243,18 +245,24 @@ std::string JoinZipPath(std::string_view a, std::string_view b) {
     return Archive::NormalizePath(raw, normalized) ? normalized : std::string{};
 }
 
-std::string JsonString(const json::Value *value, std::string fallback = {}) {
-    if (value) if (const auto *s = value->AsString()) return *s;
+const Json *JsonFind(const Json *object, std::string_view key) {
+    if (!object || !object->is_object()) return nullptr;
+    const auto value = object->find(std::string(key));
+    return value == object->end() ? nullptr : &*value;
+}
+
+std::string JsonString(const Json *value, std::string fallback = {}) {
+    if (value && value->is_string()) return value->get_ref<const std::string &>();
     return fallback;
 }
 
-double JsonNumber(const json::Value *value, double fallback) {
-    if (value) if (const auto n = value->AsNumber()) return *n;
+double JsonNumber(const Json *value, double fallback) {
+    if (value && value->is_number()) return value->get<double>();
     return fallback;
 }
 
-bool JsonBool(const json::Value *value, bool fallback) {
-    if (value) if (const auto b = value->AsBool()) return *b;
+bool JsonBool(const Json *value, bool fallback) {
+    if (value && value->is_boolean()) return value->get<bool>();
     return fallback;
 }
 
@@ -490,29 +498,29 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
         AddDiagnostic(package_name, "package", "SKIPPED_SONG", error);
         return false;
     }
-    json::ParseResult metadata;
+    Json metadata;
     bool metadata_ok = false;
     if (const Entry *songlist = FindCaseInsensitive(archive, "songlist.json")) {
         std::string text;
         if (ReadEntryText(archive, songlist, text, error)) {
-            metadata = json::Parse(text);
-            metadata_ok = static_cast<bool>(metadata) && metadata.value.Find("songs") &&
-                          metadata.value.Find("songs")->IsArray();
+            metadata = Json::parse(text, nullptr, false);
+            const Json *songs = JsonFind(&metadata, "songs");
+            metadata_ok = !metadata.is_discarded() && songs && songs->is_array();
         }
         if (!metadata_ok) AddDiagnostic(package_name, "songlist.json", "DEFAULTED_FIELD", "malformed; fallback discovery");
     }
 
     struct RawCandidate {
-        const json::Value *metadata = nullptr;
+        const Json *metadata = nullptr;
         std::string prefix;
         std::string fallback_id;
     };
     std::vector<RawCandidate> candidates;
     if (metadata_ok) {
         size_t metadata_index = 0;
-        for (const auto &value : *metadata.value.Find("songs")->AsArray()) {
+        for (const auto &value : *JsonFind(&metadata, "songs")) {
             ++metadata_index;
-            if (value.IsObject()) {
+            if (value.is_object()) {
                 candidates.push_back({&value, {}, Stem(package_name)});
             } else {
                 AddDiagnostic(package_name, "songs[" + std::to_string(metadata_index - 1) + "]",
@@ -543,10 +551,10 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
 
     size_t ordinal = 0;
     for (const auto &candidate : candidates) {
-        const json::Value *value = candidate.metadata;
+        const Json *value = candidate.metadata;
         ++ordinal;
         ImportedSong song;
-        song.source_id = value ? JsonString(value->Find("id"), candidate.fallback_id) : candidate.fallback_id;
+        song.source_id = value ? JsonString(JsonFind(value, "id"), candidate.fallback_id) : candidate.fallback_id;
         song.id = MakeSongId(song.source_id, hash, ordinal > 1 ? ordinal : 0);
         std::string prefix = candidate.prefix;
         if (value) {
@@ -560,26 +568,26 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
         }
         song.title = Stem(package_name);
         if (value) {
-            if (const auto *localized = value->Find("title_localized")) {
-                if (const auto *en = localized->Find("en")) song.title = JsonString(en, song.title);
-                else if (const auto *object = localized->AsObject(); object && !object->empty())
-                    song.title = JsonString(&object->begin()->second, song.title);
+            if (const auto *localized = JsonFind(value, "title_localized")) {
+                if (const auto *en = JsonFind(localized, "en")) song.title = JsonString(en, song.title);
+                else if (localized->is_object() && !localized->empty())
+                    song.title = JsonString(&localized->begin().value(), song.title);
             }
-            song.artist = JsonString(value->Find("artist"), "Unknown");
-            song.bpm = JsonString(value->Find("bpm"), "120");
-            song.bpm_base = JsonNumber(value->Find("bpm_base"), 120.0);
-            song.side = static_cast<int>(JsonNumber(value->Find("side"), 1));
-            song.bg = JsonString(value->Find("bg"), "base_conflict");
-            song.preview_start = static_cast<int64_t>(JsonNumber(value->Find("audioPreview"), 0));
-            song.preview_end = static_cast<int64_t>(JsonNumber(value->Find("audioPreviewEnd"), song.preview_start + 30000));
+            song.artist = JsonString(JsonFind(value, "artist"), "Unknown");
+            song.bpm = JsonString(JsonFind(value, "bpm"), "120");
+            song.bpm_base = JsonNumber(JsonFind(value, "bpm_base"), 120.0);
+            song.side = static_cast<int>(JsonNumber(JsonFind(value, "side"), 1));
+            song.bg = JsonString(JsonFind(value, "bg"), "base_conflict");
+            song.preview_start = static_cast<int64_t>(JsonNumber(JsonFind(value, "audioPreview"), 0));
+            song.preview_end = static_cast<int64_t>(JsonNumber(JsonFind(value, "audioPreviewEnd"), song.preview_start + 30000));
         }
         const std::string cache_base = RuntimeConfig::Instance().CacheDir() + "/" + hash + "/" + song.id;
         const Entry *background = FindRawBackground(archive, prefix, song.bg);
 
-        std::map<int, const json::Value *> difficulty_meta;
-        if (value) if (const auto *difficulties = value->Find("difficulties"); difficulties && difficulties->IsArray()) {
-            for (const auto &difficulty : *difficulties->AsArray()) {
-                const int slot = static_cast<int>(JsonNumber(difficulty.Find("ratingClass"), -1));
+        std::map<int, const Json *> difficulty_meta;
+        if (value) if (const auto *difficulties = JsonFind(value, "difficulties"); difficulties && difficulties->is_array()) {
+            for (const auto &difficulty : *difficulties) {
+                const int slot = static_cast<int>(JsonNumber(JsonFind(&difficulty, "ratingClass"), -1));
                 if (slot >= 0 && slot <= 3) difficulty_meta[slot] = &difficulty;
             }
         }
@@ -604,10 +612,10 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
             auto &chart = song.charts[slot];
             chart.slot = slot; chart.chart_path = chart_out; chart.source_name = entry->name;
             if (const auto it = difficulty_meta.find(slot); it != difficulty_meta.end()) {
-                chart.charter = JsonString(it->second->Find("chartDesigner"), "Unknown");
-                chart.jacket_designer = JsonString(it->second->Find("jacketDesigner"), "Unknown");
-                chart.rating = static_cast<int>(JsonNumber(it->second->Find("rating"), 0));
-                chart.rating_plus = JsonBool(it->second->Find("ratingPlus"), false);
+                chart.charter = JsonString(JsonFind(it->second, "chartDesigner"), "Unknown");
+                chart.jacket_designer = JsonString(JsonFind(it->second, "jacketDesigner"), "Unknown");
+                chart.rating = static_cast<int>(JsonNumber(JsonFind(it->second, "rating"), 0));
+                chart.rating_plus = JsonBool(JsonFind(it->second, "ratingPlus"), false);
             }
             song.has_chart[slot] = true;
             if (!metadata_ok) {
@@ -688,97 +696,88 @@ bool CustomChartManager::IsCustomChartPath(std::string_view game_path, std::stri
 }
 
 std::string CustomChartManager::BuildSongsJson() const {
-    std::ostringstream out;
-    for (size_t i = 0; i < songs_.size(); ++i) {
-        const auto &song = songs_[i];
-        if (i) out << ',';
-        out << "{\"id\":\"" << json::Escape(song.id) << "\","
-            << "\"title_localized\":{\"en\":\"" << json::Escape(song.title) << "\"},"
-            << "\"artist\":\"" << json::Escape(song.artist) << "\","
-            << "\"bpm\":\"" << json::Escape(song.bpm) << "\","
-            << "\"bpm_base\":" << song.bpm_base << ','
-            << "\"set\":\"base\",\"purchase\":\"\","
-            << "\"audioPreview\":" << song.preview_start << ','
-            << "\"audioPreviewEnd\":" << song.preview_end << ','
-            << "\"side\":" << song.side << ','
-            << "\"bg\":\"" << json::Escape(song.bg) << "\","
-            << "\"date\":0,\"version\":\"4.0.0\",\"difficulties\":[";
+    Json result = Json::array();
+    for (const auto &song : songs_) {
+        Json item = {
+            {"id", song.id},
+            {"title_localized", {{"en", song.title}}},
+            {"artist", song.artist},
+            {"bpm", song.bpm},
+            {"bpm_base", song.bpm_base},
+            {"set", "base"},
+            {"purchase", ""},
+            {"audioPreview", song.preview_start},
+            {"audioPreviewEnd", song.preview_end},
+            {"side", song.side},
+            {"bg", song.bg},
+            {"date", 0},
+            {"version", "4.0.0"},
+            {"difficulties", Json::array()},
+        };
         for (int slot = 0; slot <= 3; ++slot) {
-            if (slot) out << ',';
             const auto &chart = song.charts[slot];
-            out << "{\"ratingClass\":" << slot
-                << ",\"chartDesigner\":\"" << json::Escape(song.has_chart[slot] ? chart.charter : "") << "\""
-                << ",\"jacketDesigner\":\"" << json::Escape(song.has_chart[slot] ? chart.jacket_designer : "") << "\""
-                << ",\"rating\":" << (song.has_chart[slot] ? chart.rating : -1);
-            if (song.has_chart[slot] && chart.rating_plus) out << ",\"ratingPlus\":true";
-            out << '}';
+            Json difficulty = {
+                {"ratingClass", slot},
+                {"chartDesigner", song.has_chart[slot] ? chart.charter : ""},
+                {"jacketDesigner", song.has_chart[slot] ? chart.jacket_designer : ""},
+                {"rating", song.has_chart[slot] ? chart.rating : -1},
+            };
+            if (song.has_chart[slot] && chart.rating_plus) difficulty["ratingPlus"] = true;
+            item["difficulties"].push_back(std::move(difficulty));
         }
-        out << "]}";
+        result.push_back(std::move(item));
     }
-    return out.str();
+    return result.dump(-1, ' ', false, Json::error_handler_t::replace);
 }
 
 std::string CustomChartManager::MergeSonglist(std::string_view official_json, std::string &error) const {
     error.clear();
-    const size_t key = official_json.find("\"songs\"");
-    if (key == std::string_view::npos) { error = "songs key missing"; return {}; }
-    const size_t open = official_json.find('[', key + 7);
-    if (open == std::string_view::npos) { error = "songs array missing"; return {}; }
-    bool in_string = false, escape = false;
-    int depth = 0;
-    size_t close = std::string_view::npos;
-    for (size_t i = open; i < official_json.size(); ++i) {
-        const char c = official_json[i];
-        if (in_string) {
-            if (escape) escape = false;
-            else if (c == '\\') escape = true;
-            else if (c == '"') in_string = false;
-            continue;
-        }
-        if (c == '"') { in_string = true; continue; }
-        if (c == '[') ++depth;
-        else if (c == ']' && --depth == 0) { close = i; break; }
+    Json merged = Json::parse(official_json, nullptr, false);
+    if (merged.is_discarded() || !merged.is_object()) {
+        error = "official songlist is invalid";
+        return {};
     }
-    if (close == std::string_view::npos) { error = "songs array unterminated"; return {}; }
-    const std::string custom = BuildSongsJson();
-    if (custom.empty()) return std::string(official_json);
-    size_t p = close;
-    while (p > open + 1 && std::isspace(static_cast<unsigned char>(official_json[p - 1]))) --p;
-    const bool has_official = p > open + 1;
-    std::string merged;
-    merged.reserve(official_json.size() + custom.size() + 1);
-    merged.append(official_json.substr(0, close));
-    if (has_official) merged.push_back(',');
-    merged += custom;
-    merged.append(official_json.substr(close));
-    const auto parsed = json::Parse(merged);
-    if (!parsed) { error = "merged JSON invalid: " + parsed.error; return {}; }
-    return merged;
+    auto songs = merged.find("songs");
+    if (songs == merged.end() || !songs->is_array()) {
+        error = "songs array missing";
+        return {};
+    }
+    const Json custom = Json::parse(BuildSongsJson(), nullptr, false);
+    if (custom.is_discarded() || !custom.is_array()) {
+        error = "generated custom songs are invalid";
+        return {};
+    }
+    songs->insert(songs->end(), custom.begin(), custom.end());
+    return merged.dump(-1, ' ', false, Json::error_handler_t::replace);
 }
 
 void CustomChartManager::WriteReports(const std::vector<std::string> &active_hashes) const {
     const std::string root = RuntimeConfig::Instance().RootDir();
-    std::ostringstream manifest;
-    manifest << "{\n  \"version\":1,\n  \"packages\":[";
-    for (size_t i = 0; i < active_hashes.size(); ++i) {
-        if (i) manifest << ',';
-        manifest << "\n    {\"sha256\":\"" << active_hashes[i] << "\"}";
-    }
-    manifest << "\n  ],\n  \"songs\":" << songs_.size() << "\n}\n";
-    AtomicWrite(root + "/manifest.json", manifest.str());
+    Json packages = Json::array();
+    for (const auto &hash : active_hashes) packages.push_back({{"sha256", hash}});
+    const Json manifest = {
+        {"version", 1},
+        {"packages", std::move(packages)},
+        {"songs", songs_.size()},
+    };
+    AtomicWrite(root + "/manifest.json",
+                manifest.dump(2, ' ', false, Json::error_handler_t::replace) + '\n');
 
-    std::ostringstream report;
-    report << "{\n  \"version\":1,\n  \"entries\":[";
-    for (size_t i = 0; i < diagnostics_.size(); ++i) {
-        const auto &d = diagnostics_[i];
-        if (i) report << ',';
-        report << "\n    {\"package\":\"" << json::Escape(d.package)
-               << "\",\"item\":\"" << json::Escape(d.item)
-               << "\",\"status\":\"" << json::Escape(d.status)
-               << "\",\"detail\":\"" << json::Escape(d.detail) << "\"}";
+    Json entries = Json::array();
+    for (const auto &diagnostic : diagnostics_) {
+        entries.push_back({
+            {"package", diagnostic.package},
+            {"item", diagnostic.item},
+            {"status", diagnostic.status},
+            {"detail", diagnostic.detail},
+        });
     }
-    report << "\n  ]\n}\n";
-    AtomicWrite(root + "/import-report.json", report.str());
+    const Json report = {
+        {"version", 1},
+        {"entries", std::move(entries)},
+    };
+    AtomicWrite(root + "/import-report.json",
+                report.dump(2, ' ', false, Json::error_handler_t::replace) + '\n');
 }
 
 } // namespace arc_helper

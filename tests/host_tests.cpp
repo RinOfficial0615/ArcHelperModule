@@ -3,19 +3,20 @@
 #include <string>
 #include <vector>
 
-#include "utils/MiniJson.hpp"
+#include <nlohmann/json.hpp>
+
 #include "utils/Sha256.hpp"
 #include "utils/ZipArchive.hpp"
 
 int main(int argc, char **argv) {
     using namespace arc_helper;
     {
-        const auto parsed = json::Parse(R"({"ok":true,"n":12.5,"s":"\u4f60\u597d","a":[null,false]})");
-        assert(parsed);
-        assert(parsed.value.Find("ok")->AsBool().value());
-        assert(parsed.value.Find("s") && *parsed.value.Find("s")->AsString() == "你好");
-        assert(!json::Parse(R"({"x":1,"x":2})"));
-        assert(!json::Parse(R"({"x":tru})"));
+        const auto parsed = nlohmann::json::parse(
+            R"({"ok":true,"n":12.5,"s":"\u4f60\u597d","a":[null,false]})", nullptr, false);
+        assert(!parsed.is_discarded());
+        assert(parsed.at("ok").get<bool>());
+        assert(parsed.at("s").get<std::string>() == "你好");
+        assert(nlohmann::json::parse(R"({"x":tru})", nullptr, false).is_discarded());
     }
     assert(crypto::Sha256Hex("abc", 3) ==
            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");

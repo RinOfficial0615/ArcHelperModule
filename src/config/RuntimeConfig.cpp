@@ -5,9 +5,10 @@
 #include <sstream>
 #include <string_view>
 
+#include <nlohmann/json.hpp>
+
 #include "config/ModuleConfig.h"
 #include "utils/Log.h"
-#include "utils/MiniJson.hpp"
 
 namespace arc_helper {
 namespace {
@@ -133,18 +134,15 @@ bool RuntimeConfig::LoadLocked() {
         ARC_LOGE("RuntimeConfig: oversized %s; using defaults", path.c_str());
         return true;
     }
-    const auto parsed = json::Parse(text, 8);
-    if (!parsed || !parsed.value.IsObject()) {
-        ARC_LOGE("RuntimeConfig: malformed %s at %zu (%s); using defaults",
-                 path.c_str(), parsed.error_offset,
-                 parsed.error.empty() ? "root is not an object" : parsed.error.c_str());
+    const auto parsed = nlohmann::json::parse(text, nullptr, false);
+    if (parsed.is_discarded() || !parsed.is_object()) {
+        ARC_LOGE("RuntimeConfig: malformed %s; using defaults", path.c_str());
         return true;
     }
 
     auto assign = [&parsed](const char *key, bool &target) {
-        const auto *value = parsed.value.Find(key);
-        if (!value) return;
-        if (const auto boolean = value->AsBool()) target = *boolean;
+        const auto value = parsed.find(key);
+        if (value != parsed.end() && value->is_boolean()) target = value->get<bool>();
     };
     assign("autoplay", autoplay_enabled_);
     assign("networkLogger", network_logger_enabled_);
