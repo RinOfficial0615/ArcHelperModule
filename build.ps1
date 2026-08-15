@@ -276,6 +276,7 @@ New-Item -ItemType Directory -Path "$TmpDir/zygisk" | Out-Null
 
 Copy-Item "build/libs/arm64-v8a/libarc_helper.so" -Destination "$TmpDir/zygisk/arm64-v8a.so"
 Copy-Item "module.prop" -Destination "$TmpDir/"
+Copy-Item "scope.txt" -Destination "$TmpDir/"
 
 $ZipPath = "build/ArcHelperModule.zip"
 if (Test-Path $ZipPath) { Remove-Item $ZipPath }

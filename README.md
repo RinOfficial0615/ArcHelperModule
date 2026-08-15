@@ -53,6 +53,7 @@ Configuration and packages are read once per process. A malformed global configu
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/ModuleConfig.h` — feature toggles, target package names
+- `scope.txt` — module scope
 
 ## AI
 

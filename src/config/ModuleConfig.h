@@ -7,13 +7,6 @@ inline constexpr const char *kLogTag = "ArcHelper";
 inline constexpr const char *kRuntimeClass = "java/lang/Runtime";
 inline constexpr const char *kLibName = "libcocos2dcpp.so";
 
-// Package allowlist used by the Zygisk entry wrapper.
-inline constexpr const char *kTargetPackages[] = {
-    "moe.inf.arc",
-    "moe.low.arc",
-    "moe.low.mes",
-};
-
 // Compile-time feature switches.
 inline constexpr bool kAutoplayEnabled = true;
 inline constexpr bool kNetworkLoggerEnabled = true;

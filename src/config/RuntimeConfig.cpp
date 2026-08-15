@@ -15,10 +15,7 @@ std::string DetectProcessPackage() {
     std::ifstream cmdline("/proc/self/cmdline", std::ios::binary);
     std::string package;
     std::getline(cmdline, package, '\0');
-    for (const char *target : cfg::module::kTargetPackages) {
-        if (target && package == target) return package;
-    }
-    return {};
+    return package;
 }
 
 } // namespace

@@ -31,10 +31,12 @@ struct ImportedSong {
     double bpm_base = 120.0;
     int side = 1;
     std::string bg = "base_conflict";
+    std::string bg_path;
     int64_t preview_start = 0;
     int64_t preview_end = 30000;
     std::string audio_path;
     std::string jacket_path;
+    std::string jacket_256_path;
     std::array<ImportedChart, 4> charts{};
     std::array<bool, 4> has_chart{};
 };
@@ -62,6 +64,17 @@ public:
     bool ImportForTesting() { return ImportAll(); }
     size_t SongCountForTesting() const { return songs_.size(); }
     size_t AssetCountForTesting() const { return assets_.size(); }
+    std::string SongsJsonForTesting() const { return BuildSongsJson(); }
+    bool HasAssetPrefixForTesting(std::string_view prefix) const {
+        return std::any_of(assets_.begin(), assets_.end(), [prefix](const auto &item) {
+            return std::string_view(item.first).starts_with(prefix);
+        });
+    }
+    bool HasAssetValueForTesting(std::string_view value) const {
+        return std::any_of(assets_.begin(), assets_.end(), [value](const auto &item) {
+            return std::string_view(item.second).find(value) != std::string_view::npos;
+        });
+    }
 #endif
 
 private:

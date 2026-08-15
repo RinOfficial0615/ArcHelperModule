@@ -185,9 +185,10 @@ std::vector<ArcIndexItem> ParseArcIndex(std::string_view text) {
 }
 
 struct ArcChartSettings {
-    std::string chart_path, audio_path, jacket_path, title, composer, charter, illustrator, difficulty;
+    std::string chart_path, audio_path, jacket_path, background_path, title, composer, charter, illustrator, difficulty;
     std::string bpm_text;
     double base_bpm = 120.0;
+    double chart_constant = -1.0;
     int64_t preview_start = 0, preview_end = 30000;
 };
 
@@ -218,6 +219,7 @@ std::vector<ArcChartSettings> ParseArcProject(std::string_view text) {
         if (key == "chartPath") current.chart_path = value;
         else if (key == "audioPath") current.audio_path = value;
         else if (key == "jacketPath") current.jacket_path = value;
+        else if (key == "backgroundPath") current.background_path = value;
         else if (key == "title") current.title = value;
         else if (key == "composer") current.composer = value;
         else if (key == "charter") current.charter = value;
@@ -225,6 +227,7 @@ std::vector<ArcChartSettings> ParseArcProject(std::string_view text) {
         else if (key == "difficulty") current.difficulty = value;
         else if (key == "bpmText") current.bpm_text = value;
         else if (key == "baseBpm") current.base_bpm = std::max(1.0, std::strtod(value.c_str(), nullptr));
+        else if (key == "chartConstant") current.chart_constant = std::strtod(value.c_str(), nullptr);
         else if (key == "previewStart") current.preview_start = std::strtoll(value.c_str(), nullptr, 10);
         else if (key == "previewEnd") current.preview_end = std::strtoll(value.c_str(), nullptr, 10);
     }
@@ -282,6 +285,22 @@ const Entry *FindRawJacket(const Archive &archive, std::string_view prefix) {
         candidate = &entry;
     }
     return candidate;
+}
+
+const Entry *FindRawBackground(const Archive &archive, std::string_view prefix, std::string_view bg) {
+    if (bg.empty()) return nullptr;
+    const std::string wanted = std::string(bg);
+    for (const char *ext : {".jpg", ".jpeg", ".png"}) {
+        if (!prefix.empty()) if (const auto *e = FindCaseInsensitive(archive, std::string(prefix) + wanted + ext)) return e;
+        if (const auto *e = FindCaseInsensitive(archive, wanted + ext)) return e;
+    }
+    return nullptr;
+}
+
+void SetRatingFromConstant(ImportedChart &chart, double constant) {
+    if (!std::isfinite(constant) || constant < 0.0) return;
+    chart.rating = static_cast<int>(std::floor(constant + 1e-6));
+    chart.rating_plus = constant - static_cast<double>(chart.rating) >= 0.5 - 1e-6;
 }
 
 } // namespace
@@ -387,6 +406,7 @@ bool CustomChartManager::ImportArcPackage(const std::string &path, const std::st
         const std::string cache_base = RuntimeConfig::Instance().CacheDir() + "/" + hash + "/" + song.id;
         const Entry *audio_entry = nullptr;
         const Entry *jacket_entry = nullptr;
+        const Entry *background_entry = nullptr;
         for (const auto &chart : settings) {
             const auto slot = SlotFromPathOrDifficulty(chart.chart_path, chart.difficulty);
             if (!slot || *slot < 0 || *slot > 3) {
@@ -402,6 +422,9 @@ bool CustomChartManager::ImportArcPackage(const std::string &path, const std::st
             if (!audio_entry) audio_entry = FindCaseInsensitive(archive, JoinZipPath(item.directory, chart.audio_path));
             if (!jacket_entry && !chart.jacket_path.empty())
                 jacket_entry = FindCaseInsensitive(archive, JoinZipPath(item.directory, chart.jacket_path));
+            if (!background_entry && !chart.background_path.empty()) {
+                background_entry = FindCaseInsensitive(archive, JoinZipPath(item.directory, chart.background_path));
+            }
             if (!audio_entry) {
                 AddDiagnostic(package_name, chart.chart_path, "SKIPPED_CHART", "audio missing");
                 continue;
@@ -415,6 +438,7 @@ bool CustomChartManager::ImportArcPackage(const std::string &path, const std::st
             out.slot = *slot; out.chart_path = chart_out; out.source_name = chart.chart_path;
             out.charter = chart.charter.empty() ? "Unknown" : chart.charter;
             out.jacket_designer = chart.illustrator.empty() ? "Unknown" : chart.illustrator;
+            SetRatingFromConstant(out, chart.chart_constant);
             song.has_chart[*slot] = true;
             if (song.title.empty()) song.title = chart.title;
             if (song.artist == "Unknown" && !chart.composer.empty()) song.artist = chart.composer;
@@ -437,10 +461,20 @@ bool CustomChartManager::ImportArcPackage(const std::string &path, const std::st
         if (jacket_entry) {
             song.jacket_path = cache_base + "/jacket" + Extension(jacket_entry->name);
             if (!archive.ExtractToFile(*jacket_entry, song.jacket_path, error)) song.jacket_path.clear();
+            song.jacket_256_path = song.jacket_path;
         }
         if (song.jacket_path.empty()) {
-            song.jacket_path = "@official:Default/ImageFile.png";
+            song.jacket_path = "@official:img/default_jacket.jpg";
+            song.jacket_256_path = "@official:img/default_jacket_256.jpg";
             AddDiagnostic(package_name, song.source_id, "DEFAULTED_FIELD", "jacket");
+        }
+        if (background_entry) {
+            song.bg = "ahbg_" + song.id;
+            song.bg_path = cache_base + "/bg" + Extension(background_entry->name);
+            if (!archive.ExtractToFile(*background_entry, song.bg_path, error)) {
+                song.bg_path.clear();
+                song.bg = "base_conflict";
+            }
         }
         songs_.push_back(std::move(song));
         AddDiagnostic(package_name, songs_.back().id, "LOADED", "arcpkg");
@@ -540,6 +574,7 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
             song.preview_end = static_cast<int64_t>(JsonNumber(value->Find("audioPreviewEnd"), song.preview_start + 30000));
         }
         const std::string cache_base = RuntimeConfig::Instance().CacheDir() + "/" + hash + "/" + song.id;
+        const Entry *background = FindRawBackground(archive, prefix, song.bg);
 
         std::map<int, const json::Value *> difficulty_meta;
         if (value) if (const auto *difficulties = value->Find("difficulties"); difficulties && difficulties->IsArray()) {
@@ -596,10 +631,20 @@ bool CustomChartManager::ImportRawZip(const std::string &path, const std::string
         if (jacket) {
             song.jacket_path = cache_base + "/jacket" + Extension(jacket->name);
             if (!archive.ExtractToFile(*jacket, song.jacket_path, error)) song.jacket_path.clear();
+            song.jacket_256_path = song.jacket_path;
         }
         if (song.jacket_path.empty()) {
-            song.jacket_path = "@official:Default/ImageFile.png";
+            song.jacket_path = "@official:img/default_jacket.jpg";
+            song.jacket_256_path = "@official:img/default_jacket_256.jpg";
             AddDiagnostic(package_name, song.source_id, "DEFAULTED_FIELD", "jacket");
+        }
+        if (background) {
+            song.bg = "ahbg_" + song.id;
+            song.bg_path = cache_base + "/bg" + Extension(background->name);
+            if (!archive.ExtractToFile(*background, song.bg_path, error)) {
+                song.bg_path.clear();
+                song.bg = "base_conflict";
+            }
         }
         if (!value) {
             song.side = 1; song.bg = "base_conflict";
@@ -615,7 +660,12 @@ void CustomChartManager::RegisterSongAssets(const ImportedSong &song) {
     const std::string root = "songs/" + song.id + "/";
     assets_[root + "base.ogg"] = song.audio_path;
     assets_[root + "base.jpg"] = song.jacket_path;
-    assets_[root + "base_256.jpg"] = song.jacket_path;
+    assets_[root + "base_256.jpg"] = song.jacket_256_path.empty() ? song.jacket_path : song.jacket_256_path;
+    if (!song.bg_path.empty()) {
+        const std::string bg_root = "img/bg/1080/" + song.bg;
+        assets_[bg_root + ".jpg"] = song.bg_path;
+        assets_[bg_root + ".png"] = song.bg_path;
+    }
     for (int slot = 0; slot <= 3; ++slot) if (song.has_chart[slot]) {
         assets_[root + std::to_string(slot) + ".aff"] = song.charts[slot].chart_path;
     }

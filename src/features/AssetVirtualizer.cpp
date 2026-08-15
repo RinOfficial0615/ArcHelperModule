@@ -42,10 +42,6 @@ ReadFn g_read_original = nullptr;
 LengthFn g_length_original = nullptr;
 CloseFn g_close_original = nullptr;
 
-bool EndsWith(std::string_view value, std::string_view suffix) {
-    return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
-}
-
 std::shared_ptr<std::vector<uint8_t>> ReadFile(const std::string &path) {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) return {};
@@ -72,11 +68,11 @@ std::shared_ptr<std::vector<uint8_t>> ReadOfficialAsset(AAsset *asset) {
 }
 
 bool IsParserCaller(uintptr_t return_address) {
-    if (!g_lib_base || !g_offsets.songlist_parser || return_address < g_lib_base) return false;
+    if (!g_lib_base || !g_offsets.songlist_asset_loader_caller || return_address < g_lib_base) return false;
     const uintptr_t offset = return_address - g_lib_base;
-    // Confirmed parser body range for 6.16.2c. Keep the window bounded so the
-    // separate integrity/preload path continues to receive official bytes.
-    return offset >= g_offsets.songlist_parser && offset < g_offsets.songlist_parser + 0x77E8;
+    // 6.16.2c has two songlist open callers. 0xB5E244 only probes existence;
+    // 0x142CFB0 is the caller that obtains length and reads the bytes.
+    return offset == g_offsets.songlist_asset_loader_caller;
 }
 
 AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
@@ -101,6 +97,11 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
             g_close_original(asset);
             return g_open_original(manager, filename, mode);
         }
+        // The validated songlist loader is also the scene re-entry edge when
+        // the result screen returns to song selection. It is the only place
+        // where we clear a completed custom session; official AFF/jacket
+        // preloads never change the lifecycle state.
+        CustomSession::Instance().OnSelectionScreenEntered();
         auto bytes = std::make_shared<std::vector<uint8_t>>(merged.begin(), merged.end());
         {
             std::scoped_lock lock(g_assets_mutex);
@@ -111,16 +112,7 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     }
 
     const std::string *source = charts.ResolveAsset(path);
-    if (!source) {
-        if (CustomSession::Instance().IsActive() && EndsWith(path, ".aff")) {
-            CustomSession::Instance().Clear("official-chart");
-        }
-        if (CustomSession::Instance().IsActive() && path.starts_with("songs/") &&
-            (EndsWith(path, "/base.jpg") || EndsWith(path, "/base_256.jpg"))) {
-            CustomSession::Instance().Clear("official-song-asset");
-        }
-        return g_open_original(manager, filename, mode);
-    }
+    if (!source) return g_open_original(manager, filename, mode);
 
     if (source->starts_with("@official:")) {
         return g_open_original(manager, source->c_str() + std::strlen("@official:"), mode);
@@ -129,6 +121,7 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     const auto bytes = ReadFile(*source);
     if (!bytes) {
         ARC_LOGE("AssetVirtualizer: failed to read %s -> %s", filename, source->c_str());
+        if (!source->starts_with("@official:")) CustomSession::Instance().OnLoadFailure("asset-read");
         return nullptr;
     }
     AAsset *asset = g_open_original(manager, "songs/songlist", mode);
@@ -137,8 +130,18 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
         std::scoped_lock lock(g_assets_mutex);
         g_assets[asset] = {bytes, 0, std::string(path)};
     }
-    std::string song_id;
-    if (charts.IsCustomChartPath(path, &song_id)) CustomSession::Instance().Activate(song_id.c_str());
+    if (!source->starts_with("@official:") && path.starts_with("songs/") &&
+        path.ends_with("/base.ogg")) {
+        // The song-selection loader opens the preview/audio asset before AFF;
+        // this is the selection lifecycle edge, not an official-asset probe.
+        std::string song_id;
+        if (const size_t slash = path.find('/', std::string_view("songs/").size());
+            slash != std::string_view::npos) {
+            song_id = std::string(path.substr(std::string_view("songs/").size(),
+                                               slash - std::string_view("songs/").size()));
+        }
+        CustomSession::Instance().OnSongSelected(song_id.c_str());
+    }
     ARC_LOGI("AssetVirtualizer: mapped %s (%zu bytes)", filename, bytes->size());
     return asset;
 }

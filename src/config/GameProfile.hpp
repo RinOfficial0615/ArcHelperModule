@@ -48,6 +48,10 @@ struct SslPinsOffsets {
 
 struct CustomChartsOffsets {
     uintptr_t songlist_parser = 0;
+    // Return address immediately after the validated AAssetManager_open BL
+    // that reads songs/songlist (6.16.2c: 0x142CFB0).  This is deliberately
+    // an exact caller match; the nearby integrity/preload caller is official.
+    uintptr_t songlist_asset_loader_caller = 0;
     uintptr_t asset_bundle_loader = 0;
 };
 
@@ -191,6 +195,7 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .ssl_pins = {},
         .custom_charts = {
             .songlist_parser = 0xCA2280,
+            .songlist_asset_loader_caller = 0x142CFB0,
             .asset_bundle_loader = 0x100F3E8,
         },
         .capabilities = {.autoplay = true, .network = true, .custom_charts = true},

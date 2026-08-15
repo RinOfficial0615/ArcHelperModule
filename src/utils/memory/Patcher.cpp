@@ -27,7 +27,12 @@ inline static bool PatchWithPagePerms(uintptr_t range_start, size_t range_size, 
     int original_perms = 0;
     if (!ProcMaps::GetPermissions(range_start, original_perms)) return false;
 
-    if (mprotect(reinterpret_cast<void *>(page_start), protect_size, PROT_READ | PROT_WRITE) != 0) {
+    // Preserve execute permission while patching. Android 16 may schedule the
+    // Java/native caller immediately after JNI_OnLoad; dropping X even for the
+    // patch window can produce SEGV_ACCERR at the hooked function entry. It
+    // also keeps the page executable if restoring the exact flags fails.
+    const int writable_perms = original_perms | PROT_READ | PROT_WRITE;
+    if (mprotect(reinterpret_cast<void *>(page_start), protect_size, writable_perms) != 0) {
         return false;
     }
 

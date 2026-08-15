@@ -9,9 +9,25 @@ CustomSession &CustomSession::Instance() {
     return session;
 }
 
-void CustomSession::Activate(const char *song_id) {
+void CustomSession::OnSongSelected(const char *song_id) {
     state_.store(CustomSessionState::CustomSelected, std::memory_order_release);
     ARC_LOGI("CustomSession: active song=%s", song_id ? song_id : "(unknown)");
+}
+
+void CustomSession::OnLoadFailure(const char *reason) {
+    Clear(reason ? reason : "load-failure");
+}
+
+void CustomSession::OnResultEntered() {
+    MarkResult();
+}
+
+void CustomSession::OnResultExited() {
+    Clear("result-exit");
+}
+
+void CustomSession::OnSelectionScreenEntered() {
+    Clear("selection-screen");
 }
 
 void CustomSession::MarkPlaying() {

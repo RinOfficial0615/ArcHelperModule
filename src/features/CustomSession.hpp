@@ -16,7 +16,13 @@ class CustomSession {
 public:
     static CustomSession &Instance();
 
-    void Activate(const char *song_id);
+    // Lifecycle entry points. They are called by the selected-song/load and
+    // scene-transition hooks, never by official asset probes.
+    void OnSongSelected(const char *song_id);
+    void OnLoadFailure(const char *reason);
+    void OnResultEntered();
+    void OnResultExited();
+    void OnSelectionScreenEntered();
     void MarkPlaying();
     void MarkResult();
     void Clear(const char *reason);

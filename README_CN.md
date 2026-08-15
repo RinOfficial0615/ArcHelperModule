@@ -28,6 +28,8 @@ git submodule update --init --recursive
 
 产物：`build/ArcHelperModule.zip`
 
+`scope.txt` 会一并打包到模块根目录。每行填写一个精确包名，空行和 `#` 注释会忽略；文件存在时内容为唯一作用域，删空即停用全部目标包。文件缺失时回退到内置的三个包名。
+
 ## 功能
 
 | 功能 | `config.json` 键 | 说明 |
@@ -52,7 +54,7 @@ git submodule update --init --recursive
 - `src/config/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
 - `src/config/NetworkBlockConfig.h` — 网络策略、拦截规则、字节签名
-- `src/config/ModuleConfig.h` — 功能开关、目标包名
+- `scope.txt` — 模块作用域
 
 ## AI
 

@@ -20,6 +20,11 @@ expected = {
     0xE59C90: "ffc300d1fd7b01a9f44f02a9fd430091",
     0x17E9698: "ff8301d1fd7b02a9f71b00f9f65704a9",
     0x778FD0: "ff0304d1fd7b0fa9fdc30391a20f39a9",
+    # 6.16.2c songlist data loader: AAssetManager_open BL at 0x142CFAC,
+    # whose return address is the exact caller 0x142CFB0.
+    0x142CFAC: "79041494f40300aae00700b4e00314aa",
+    # Separate integrity/existence probe; it must not be accepted as loader.
+    0xB5E240: "d43f3794600000b4d63f379420008052081740f9a9835ff81f0109eb41010054",
 }
 patches = {
     0xBEE748: 0x11019148,

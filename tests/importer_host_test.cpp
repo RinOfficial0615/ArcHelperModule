@@ -21,6 +21,17 @@ int main(int argc, char **argv) {
     assert(manager.ImportForTesting());
     assert(manager.SongCountForTesting() == expected_songs);
     assert(manager.AssetCountForTesting() >= expected_songs * 4);
+    const std::string songs_json = manager.SongsJsonForTesting();
+    // ArcCreate chartConstant 5.5/9.5 must retain the integer rating and '+' marker.
+    assert(songs_json.find("\"rating\":5,\"ratingPlus\":true") != std::string::npos);
+    assert(songs_json.find("\"rating\":9,\"ratingPlus\":true") != std::string::npos);
+    // Raw ZIP 1.zip packages djmax_wagd.jpg; it must be extracted under the
+    // exact 1080 background namespace used by the game.
+    assert(manager.HasAssetPrefixForTesting("img/bg/1080/ahbg_"));
+    // Broken/minimal raw packages have no cover and must use the real APK
+    // default jackets rather than Default/ImageFile.png.
+    assert(manager.HasAssetValueForTesting("@official:img/default_jacket.jpg"));
+    assert(manager.HasAssetValueForTesting("@official:img/default_jacket_256.jpg"));
     const std::filesystem::path root(argv[1]);
     assert(std::filesystem::is_regular_file(root / "manifest.json"));
     assert(std::filesystem::is_regular_file(root / "import-report.json"));

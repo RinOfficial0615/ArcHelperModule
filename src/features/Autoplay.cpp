@@ -284,6 +284,13 @@ bool Autoplay::NoteCanApplyJudgement(game::LogicNote note, int judge_time, int i
 
 void Autoplay::OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t play_scene_or_ctx) {
     // This hook runs every logic tick and is our main timebase.
+    if (!gameplay) {
+        // The gameplay object is gone when the result scene is entered or a
+        // chart load aborts. Keep isolation through result UI until the
+        // validated songlist/selection lifecycle edge clears it.
+        CustomSession::Instance().OnResultEntered();
+        return;
+    }
     CustomSession::Instance().MarkPlaying();
     const int now_ms = gameplay.timer().NowMs();
     last_now_ms_ = now_ms;

@@ -7,6 +7,7 @@
 
 #include "wrapper/WrapperCommon.hpp"
 #include "config/RuntimeConfig.hpp"
+#include "config/ScopeConfig.hpp"
 #include "zygisk.hpp"
 
 using zygisk::Api;
@@ -139,7 +140,9 @@ public:
             return;
         }
 
-        const bool enable_module = wrapper::IsTargetPackage(package_name);
+        const int scope_dirfd = api_->getModuleDir();
+        const bool enable_module = cfg::scope::IsTargetPackage(scope_dirfd, package_name);
+        if (scope_dirfd >= 0) close(scope_dirfd);
         if (enable_module) RuntimeConfig::Instance().SetPackageName(package_name);
         env_->ReleaseStringUTFChars(args->nice_name, package_name);
 
