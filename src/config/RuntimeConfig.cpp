@@ -63,6 +63,16 @@ void RuntimeConfig::SetPackageName(const char *package_name) {
     loaded_ = false;
 }
 
+void RuntimeConfig::SetRootDir(const std::string &root_dir) {
+    if (root_dir.empty()) return;
+    std::scoped_lock lock(mutex_);
+    if (root_dir_ == root_dir) return;
+    root_dir_ = root_dir;
+    charts_dir_ = root_dir_ + "/charts";
+    cache_dir_ = root_dir_ + "/cache";
+    loaded_ = false;
+}
+
 #ifdef ARC_HELPER_HOST_TEST
 void RuntimeConfig::SetRootDirForTesting(const std::string &root_dir) {
     std::scoped_lock lock(mutex_);
@@ -77,11 +87,10 @@ void RuntimeConfig::SetRootDirForTesting(const std::string &root_dir) {
 void RuntimeConfig::EnsureLoaded() {
     std::scoped_lock lock(mutex_);
     if (loaded_) return;
-    LoadLocked();
-    loaded_ = true;
+    loaded_ = LoadLocked();
 }
 
-void RuntimeConfig::LoadLocked() {
+bool RuntimeConfig::LoadLocked() {
     autoplay_enabled_ = cfg::module::kAutoplayEnabled;
     network_logger_enabled_ = false;
     network_block_enabled_ = cfg::module::kNetworkBlockEnabled;
@@ -99,7 +108,7 @@ void RuntimeConfig::LoadLocked() {
     if (root_dir_.empty()) {
         ARC_LOGE("RuntimeConfig: package name unavailable; custom charts disabled");
         custom_charts_enabled_ = false;
-        return;
+        return false;
     }
 
     std::error_code ec;
@@ -114,7 +123,7 @@ void RuntimeConfig::LoadLocked() {
         ARC_LOGI("RuntimeConfig: %s absent; beautified defaults %s at %s",
                  path.c_str(), generated ? "generated" : "could not be generated",
                  path.c_str());
-        return;
+        return generated;
     }
 
     std::ostringstream buffer;
@@ -122,14 +131,14 @@ void RuntimeConfig::LoadLocked() {
     const std::string text = buffer.str();
     if (text.size() > 64 * 1024) {
         ARC_LOGE("RuntimeConfig: oversized %s; using defaults", path.c_str());
-        return;
+        return true;
     }
     const auto parsed = json::Parse(text, 8);
     if (!parsed || !parsed.value.IsObject()) {
         ARC_LOGE("RuntimeConfig: malformed %s at %zu (%s); using defaults",
                  path.c_str(), parsed.error_offset,
                  parsed.error.empty() ? "root is not an object" : parsed.error.c_str());
-        return;
+        return true;
     }
 
     auto assign = [&parsed](const char *key, bool &target) {
@@ -146,6 +155,7 @@ void RuntimeConfig::LoadLocked() {
     ARC_LOGI("RuntimeConfig: autoplay=%d logger=%d block=%d ssl=%d custom=%d",
              autoplay_enabled_, network_logger_enabled_, network_block_enabled_,
              disable_ssl_pins_enabled_, custom_charts_enabled_);
+    return true;
 }
 
 } // namespace arc_helper

@@ -10,6 +10,7 @@ public:
     static RuntimeConfig &Instance();
 
     void SetPackageName(const char *package_name);
+    void SetRootDir(const std::string &root_dir);
     void EnsureLoaded();
 
     bool AutoplayEnabled() const { return autoplay_enabled_; }
@@ -30,7 +31,7 @@ public:
 private:
     RuntimeConfig() = default;
 
-    void LoadLocked();
+    bool LoadLocked();
 
     mutable std::mutex mutex_{};
     std::string package_name_{};
