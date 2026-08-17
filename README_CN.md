@@ -34,11 +34,11 @@ git submodule update --init --recursive
 
 | 功能 | `config.json` 键 | 说明 |
 |------|-------------------|------|
-| 自动打歌 | `autoplay` | 接管蛇和长条 touch，强制 Pure，精简特效 |
-| 网络日志 | `networkLogger` | 审计全部 HTTP 请求/响应，默认关闭 |
-| 常规网络拦截 | `networkBlock` | 屏蔽上传分数/世界模式等规则；不影响自定义会话的强制隔离 |
-| SSL 反抓包 | `sslPinningBypass` | 去掉有完整 patch profile 的版本上的 SSL pinning，默认关闭 |
-| 自定义谱面 | `customCharts` | 启动时加载 `.arcpkg` 与 raw ZIP；本地会话强制阻断全部网络 |
+| 自动打歌 | `Autoplay` | 接管蛇和长条 touch，强制 Pure，精简特效 |
+| 网络日志 | `NetworkLogger` | 审计全部 HTTP 请求/响应，默认关闭 |
+| 常规网络拦截 | `NetworkBlock` | 屏蔽上传分数/世界模式等规则；自定义谱面的固定隔离规则独立生效 |
+| SSL 反抓包 | `SslPinningBypass` | 去掉有完整 patch profile 的版本上的 SSL pinning，默认关闭 |
+| 自定义谱面 | `CustomCharts` | 启动时加载 `.arcpkg` 与 raw ZIP，并启用固定网络隔离规则 |
 
 ## 运行时版本识别
 
@@ -46,9 +46,9 @@ git submodule update --init --recursive
 
 ## 配置位置
 
-运行时目录：`Android/data/<包名>/files/ArcHelper/`。模块会创建默认 `config.json`，并在启动时扫描 `charts/`；导入结果写入 `manifest.json` 与 `import-report.json`。
+运行时目录：`Android/data/<包名>/files/ArcHelper/`。各 Feature 实例会生成并规范化 `config.json`，自定义谱面从 `charts/` 扫描，进程日志写入 `logs/`，总计保留五份。
 
-配置和谱面目录每个进程只读取一次。损坏的全局配置会整体回退到默认值。raw ZIP 最低只需音频和 AFF；缺失元数据时使用 `side=1`、`bg=base_conflict`、官方默认封面及确定性标题/BPM。首版自定义难度槽位为 `0..3`。
+配置和谱面目录每个进程只读取一次。已注册字段类型或范围错误时会写回默认值，未知字段保留；JSON 整体损坏时重新生成全部 Feature 默认值。raw ZIP 最低只需音频和 AFF，自定义难度槽位支持 `0..4`。
 
 - `src/config/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
 - `src/config/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
@@ -57,7 +57,7 @@ git submodule update --init --recursive
 - `module/config.example.json` — 运行时配置示例
 - `module/scope.txt` — 打包到 ZIP 根目录的模块作用域
 
-第三方源码固定在 `third_party/json`、`third_party/libcxx` 和 `third_party/lsplt`。libcxx 子模块固定为 `d5117df3ba7704aab06c3a30b97c7529c931662b`，并作为模块的静态 C++ 运行库链接。Zygisk API 头文件位于 `third_party/zygisk.hpp`。
+第三方源码固定在 `third_party/json`、`third_party/libcxx`、`third_party/lsplt` 和 `third_party/magic_enum`。libcxx 子模块固定为 `d5117df3ba7704aab06c3a30b97c7529c931662b`，并作为模块的静态 C++ 运行库链接；`magic_enum` 固定为 v0.9.8。Zygisk API 头文件位于 `third_party/zygisk.hpp`。
 
 ## AI
 

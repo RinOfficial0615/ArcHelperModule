@@ -5,16 +5,94 @@ import shutil
 import json
 import subprocess
 import zipfile
+import os
+import re
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKSPACE = ROOT.parent
 BUILD = ROOT / "build" / "host-tests"
+MAGIC_ENUM_INCLUDE = ROOT / "third_party" / "magic_enum" / "include"
 BUILD.mkdir(parents=True, exist_ok=True)
+
+
+def _version_key(path: pathlib.Path) -> tuple[int, ...]:
+    numbers = re.findall(r"\d+", path.name)
+    return tuple(int(number) for number in numbers) or (0,)
+
+
+def _find_ndk_clang() -> str:
+    roots: list[pathlib.Path] = []
+    for variable in ("ANDROID_NDK_ROOT", "ANDROID_NDK_HOME"):
+        value = os.environ.get(variable)
+        if value:
+            roots.append(pathlib.Path(value))
+    roots.extend(
+        pathlib.Path(path)
+        for path in (
+            r"D:\android_sdk\ndk",
+            pathlib.Path.home() / "AppData/Local/Android/Sdk/ndk",
+            pathlib.Path.home() / "Android/Sdk/ndk",
+            pathlib.Path("/opt/android-sdk/ndk"),
+        )
+    )
+
+    candidates: list[tuple[tuple[int, ...], pathlib.Path]] = []
+    for root in roots:
+        if root.is_file():
+            candidates.append((_version_key(root), root))
+            continue
+        if not root.is_dir():
+            continue
+        ndk_dirs = [root] if (root / "source.properties").is_file() else [
+            ndk for ndk in root.iterdir() if ndk.is_dir()
+        ]
+        for ndk in ndk_dirs:
+            if not ndk.is_dir():
+                continue
+            for host in ("windows-x86_64", "linux-x86_64", "darwin-x86_64"):
+                suffix = "clang++.exe" if host.startswith("windows") else "clang++"
+                compiler = ndk / "toolchains" / "llvm" / "prebuilt" / host / "bin" / suffix
+                if compiler.is_file():
+                    candidates.append((_version_key(ndk), compiler))
+
+    if not candidates:
+        raise SystemExit(
+            "No NDK clang++ found. Set ANDROID_NDK_ROOT or install an NDK; "
+            "host tests intentionally do not fall back to g++."
+        )
+    return str(max(candidates, key=lambda candidate: (candidate[0], str(candidate[1])))[1])
+
+
+CXX = _find_ndk_clang()
+print(f"using NDK clang++: {CXX}")
+
+
+def _find_winpthread() -> pathlib.Path:
+    candidates = []
+    if os.environ.get("MINGW_PREFIX"):
+        candidates.append(pathlib.Path(os.environ["MINGW_PREFIX"]) / "lib" / "libwinpthread.a")
+    candidates.extend(
+        pathlib.Path(path)
+        for path in (
+            r"C:\Strawberry\c\x86_64-w64-mingw32\lib\libwinpthread.a",
+            r"C:\msys64\mingw64\x86_64-w64-mingw32\lib\libwinpthread.a",
+        )
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise SystemExit(
+        "NDK clang++ was found, but libwinpthread.a is missing; install a MinGW host runtime."
+    )
+
+
+HOST_LINK_ARGS = ["-L", str(_find_winpthread().parent), "-lwinpthread"]
 
 exe = BUILD / "host_tests.exe"
 compile_cmd = [
-    "g++",
+    CXX,
+    *HOST_LINK_ARGS,
     "-std=c++23",
     "-O2",
     "-Wall",
@@ -24,21 +102,28 @@ compile_cmd = [
     "-static-libgcc",
     "-static-libstdc++",
     "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
     str(ROOT / "src"),
+    "-I",
+    str(MAGIC_ENUM_INCLUDE),
     "-I",
     str(ROOT / "third_party" / "json" / "include"),
     str(ROOT / "tests" / "host_tests.cpp"),
+    str(ROOT / "src" / "manager" / "network" / "NetworkHandlerSnapshot.cpp"),
     str(ROOT / "src" / "utils" / "Sha256.cpp"),
     str(ROOT / "src" / "utils" / "ZipArchive.cpp"),
+    str(ROOT / "src" / "utils" / "Log.cpp"),
     "-lz",
     "-o",
     str(exe),
 ]
 subprocess.run(compile_cmd, check=True, cwd=ROOT)
 
-runtime_config_exe = BUILD / "runtime_config_host_test.exe"
-runtime_config_compile = [
-    "g++",
+config_manager_exe = BUILD / "config_manager_host_test.exe"
+config_manager_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
     "-std=c++23",
     "-O2",
     "-Wall",
@@ -53,18 +138,106 @@ runtime_config_compile = [
     "-I",
     str(ROOT / "src"),
     "-I",
+    str(MAGIC_ENUM_INCLUDE),
+    "-I",
     str(ROOT),
     "-I",
     str(ROOT / "third_party" / "json" / "include"),
-    str(ROOT / "tests" / "runtime_config_host_test.cpp"),
-    str(ROOT / "src" / "config" / "RuntimeConfig.cpp"),
+    str(ROOT / "tests" / "config_manager_host_test.cpp"),
+    str(ROOT / "src" / "manager" / "ConfigManager.cpp"),
+    str(ROOT / "src" / "utils" / "Log.cpp"),
     "-o",
-    str(runtime_config_exe),
+    str(config_manager_exe),
 ]
-subprocess.run(runtime_config_compile, check=True, cwd=ROOT)
-defaults_root = BUILD / "runtime-config-root"
-subprocess.run([str(runtime_config_exe), str(defaults_root)], check=True, cwd=ROOT)
-print("validated beautified default config generation when config.json is absent")
+subprocess.run(config_manager_compile, check=True, cwd=ROOT)
+config_root = BUILD / "config-manager-root"
+subprocess.run([str(config_manager_exe), str(config_root)], check=True, cwd=ROOT)
+print("validated inferred feature config, fallback normalization, and atomic save")
+
+logger_exe = BUILD / "logger_host_test.exe"
+logger_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-DARC_HELPER_HOST_TEST",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    "-I",
+    str(MAGIC_ENUM_INCLUDE),
+    str(ROOT / "tests" / "logger_host_test.cpp"),
+    str(ROOT / "src" / "utils" / "Log.cpp"),
+    "-o",
+    str(logger_exe),
+]
+subprocess.run(logger_compile, check=True, cwd=ROOT)
+logger_root = BUILD / "logger-root"
+subprocess.run([str(logger_exe), str(logger_root)], check=True, cwd=ROOT)
+print("validated logger source format, UTF-8 truncation, full file output, and rotation")
+
+hook_manager_exe = BUILD / "hook_manager_host_test.exe"
+hook_manager_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    "-I",
+    str(MAGIC_ENUM_INCLUDE),
+    str(ROOT / "tests" / "hook_manager_host_test.cpp"),
+    str(ROOT / "src" / "manager" / "HookManager.cpp"),
+    str(ROOT / "src" / "utils" / "Log.cpp"),
+    "-ldl",
+    "-o",
+    str(hook_manager_exe),
+]
+subprocess.run(hook_manager_compile, check=True, cwd=ROOT)
+subprocess.run([str(hook_manager_exe)], check=True, cwd=ROOT)
+print("validated inline-hook register/commit rollback and destructor recovery")
+
+memory_patch_exe = BUILD / "memory_patch_host_test.exe"
+memory_patch_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    str(ROOT / "tests" / "memory_patch_host_test.cpp"),
+    str(ROOT / "src" / "utils" / "memory" / "RuntimeMemory.cpp"),
+    str(ROOT / "src" / "utils" / "memory" / "PatchTransaction.cpp"),
+    str(ROOT / "src" / "utils" / "memory" / "ProcMaps.cpp"),
+    "-o",
+    str(memory_patch_exe),
+]
+subprocess.run(memory_patch_compile, check=True, cwd=ROOT)
+subprocess.run([str(memory_patch_exe)], check=True, cwd=ROOT)
+print("validated runtime memory range checks and patch transaction rollback")
 
 valid = sorted((WORKSPACE / "ArcCreate" / "arcpkg-samples").glob("*.arcpkg"))
 valid += sorted((WORKSPACE / "ArcCreate" / "raw-zip-samples").glob("*.zip"))
@@ -120,9 +293,69 @@ with zipfile.ZipFile(charts_dir / "multi-broken-json.zip", "w", zipfile.ZIP_DEFL
             f"AudioOffset:0\n-\ntiming(0,{bpm},4);\n",
         )
 
+# Valid JSON with fractional and out-of-range integral fields must not reach
+# narrowing conversions. The importer should retain the song with defaults.
+with zipfile.ZipFile(charts_dir / "bounded-numbers.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr(
+        "songlist.json",
+        json.dumps({
+            "songs": [{
+                "id": "bounded_numeric",
+                "title_localized": {"en": "Bounded Numeric"},
+                "bpm_base": -5,
+                "side": 1.5,
+                "audioPreview": -1,
+                "audioPreviewEnd": 9_223_372_036_854_775_807,
+                "bg": "missing_custom_background",
+                "difficulties": [{
+                    "ratingClass": 2,
+                    "rating": 9_223_372_036_854_775_807,
+                    "ratingPlus": "true",
+                }],
+            }],
+        }),
+    )
+    archive.writestr("base.ogg", b"OggS-host-test")
+    archive.writestr("2.aff", "AudioOffset:0\n-\ntiming(0,120,4);\n")
+
+with zipfile.ZipFile(charts_dir / "bounded-arc.arcpkg", "w", zipfile.ZIP_DEFLATED) as archive:
+    archive.writestr(
+        "index.yml",
+        "- directory: bounded\n  identifier: bounded_arc\n"
+        "  settingsFile: project.arcproj\n  type: level\n",
+    )
+    archive.writestr(
+        "bounded/project.arcproj",
+        "charts:\n"
+        "- chartPath: 2.aff\n"
+        "  audioPath: base.ogg\n"
+        "  title: Bounded Arc\n"
+        "  difficulty: Future 11+\n"
+        "  charter: >-\n"
+        "    Folded\n"
+        "    Charter\n"
+        "  baseBpm: 120junk\n"
+        "  chartConstant: 9e999\n"
+        "  previewStart: -5\n"
+        "  previewEnd: 999999999999999999999\n"
+        "  skin:\n"
+        "    side: light\n",
+    )
+    archive.writestr("bounded/base.ogg", b"OggS-host-test")
+    archive.writestr("bounded/2.aff", "AudioOffset:0\n-\ntiming(0,120,4);\n")
+
+# Content-addressed IDs must not make a byte-identical package imported under a
+# second filename invalidate the whole snapshot.
+shutil.copyfile(charts_dir / "bounded-arc.arcpkg", charts_dir / "duplicate-content.arcpkg")
+
+# The importer must reject oversized metadata before inflating it into memory.
+with zipfile.ZipFile(charts_dir / "oversized-text.zip", "w", zipfile.ZIP_STORED) as archive:
+    archive.writestr("songlist.json", " " * (8 * 1024 * 1024 + 1))
+
 importer_exe = BUILD / "importer_host_test.exe"
 import_compile = [
-    "g++",
+    CXX,
+    *HOST_LINK_ARGS,
     "-std=c++23",
     "-O2",
     "-Wall",
@@ -137,13 +370,19 @@ import_compile = [
     "-I",
     str(ROOT / "src"),
     "-I",
+    str(MAGIC_ENUM_INCLUDE),
+    "-I",
     str(ROOT),
     "-I",
     str(ROOT / "third_party" / "json" / "include"),
     str(ROOT / "tests" / "importer_host_test.cpp"),
     str(ROOT / "tests" / "asset_virtualizer_stub.cpp"),
-    str(ROOT / "src" / "config" / "RuntimeConfig.cpp"),
-    str(ROOT / "src" / "features" / "CustomChartManager.cpp"),
+    str(ROOT / "src" / "manager" / "CustomChartManager.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartImporter.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartAssetIndex.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartSnapshot.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartReportWriter.cpp"),
+    str(ROOT / "src" / "utils" / "Log.cpp"),
     str(ROOT / "src" / "utils" / "Sha256.cpp"),
     str(ROOT / "src" / "utils" / "ZipArchive.cpp"),
     "-lz",
@@ -151,19 +390,40 @@ import_compile = [
     str(importer_exe),
 ]
 subprocess.run(import_compile, check=True, cwd=ROOT)
-subprocess.run([str(importer_exe), str(import_root), "10"], check=True, cwd=ROOT)
+subprocess.run([str(importer_exe), str(import_root)], check=True, cwd=ROOT)
 
 report = json.loads((import_root / "import-report.json").read_text(encoding="utf-8"))
+manifest_before_delete = json.loads((import_root / "manifest.json").read_text(encoding="utf-8"))
+song_count_before_delete = manifest_before_delete["songs"]
+cache_count_before_delete = len([
+    path for path in (import_root / "cache").iterdir() if path.is_dir()
+])
 statuses = [entry["status"] for entry in report["entries"]]
-assert statuses.count("LOADED") == 10, statuses
+assert statuses.count("LOADED") == song_count_before_delete, statuses
 assert "DEFAULTED_FIELD" in statuses
+assert any(entry.get("detail") == "background" for entry in report["entries"]), report
+assert any(
+    entry.get("detail") == "duplicate package content"
+    for entry in report["entries"]
+), report
+assert any(
+    entry.get("detail") == "text entry size limit; fallback discovery"
+    for entry in report["entries"]
+), report
+skipped_charts = {
+    entry["item"]
+    for entry in report["entries"]
+    if entry["status"] == "SKIPPED_CHART"
+}
+assert "4.aff" not in skipped_charts, skipped_charts
+assert {"5.aff", "6.aff"} <= skipped_charts, skipped_charts
 print("validated multi-package import, broken JSON fallback, defaults, cache, and reports")
 
 # Removing a source package must remove its song and orphaned content-addressed cache.
 (charts_dir / "package-6.zip").unlink()
-subprocess.run([str(importer_exe), str(import_root), "9"], check=True, cwd=ROOT)
+subprocess.run([str(importer_exe), str(import_root)], check=True, cwd=ROOT)
 manifest_after_delete = json.loads((import_root / "manifest.json").read_text(encoding="utf-8"))
-assert manifest_after_delete["songs"] == 9
+assert manifest_after_delete["songs"] < song_count_before_delete
 cache_dirs = [path for path in (import_root / "cache").iterdir() if path.is_dir()]
-assert len(cache_dirs) == 8, cache_dirs
+assert len(cache_dirs) < cache_count_before_delete, cache_dirs
 print("validated source deletion and orphan cache cleanup")

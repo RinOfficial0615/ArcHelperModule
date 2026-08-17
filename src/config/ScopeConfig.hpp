@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cctype>
 #include <string>
 #include <string_view>
@@ -39,21 +41,42 @@ inline bool Contains(std::string_view text, std::string_view package_name) {
 
 inline bool IsTargetPackage(int module_dir_fd, const char *package_name) {
     if (module_dir_fd < 0 || !package_name || package_name[0] == '\0') return false;
-    char buffer[16 * 1024];
+    constexpr size_t kMaxScopeBytes = 256 * 1024;
+    std::string contents;
+    contents.reserve(4096);
     const int fd = openat(module_dir_fd, "scope.txt", O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
         for (const char *default_package : kDefaultPackages)
             if (std::string_view(package_name) == default_package) return true;
         return false;
     }
-    const ssize_t size = read(fd, buffer, sizeof(buffer));
-    close(fd);
-    if (size < 0) {
-        for (const char *default_package : kDefaultPackages)
-            if (std::string_view(package_name) == default_package) return true;
-        return false;
+    std::array<char, 4096> buffer{};
+    bool truncated = false;
+    while (contents.size() < kMaxScopeBytes) {
+        const size_t remaining = kMaxScopeBytes - contents.size();
+        const size_t request = std::min(remaining, buffer.size());
+        const ssize_t size = read(fd, buffer.data(), request);
+        if (size < 0 && errno == EINTR) continue;
+        if (size < 0) {
+            close(fd);
+            for (const char *default_package : kDefaultPackages)
+                if (std::string_view(package_name) == default_package) return true;
+            return false;
+        }
+        if (size == 0) break;
+        contents.append(buffer.data(), static_cast<size_t>(size));
     }
-    return Contains(std::string_view(buffer, static_cast<size_t>(size)), package_name);
+    if (contents.size() == kMaxScopeBytes) {
+        char extra = 0;
+        ssize_t size = 0;
+        do {
+            size = read(fd, &extra, 1);
+        } while (size < 0 && errno == EINTR);
+        truncated = size > 0;
+    }
+    close(fd);
+    if (truncated) return false;
+    return Contains(contents, package_name);
 }
 
 } // namespace arc_helper::cfg::scope

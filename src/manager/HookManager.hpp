@@ -2,7 +2,11 @@
 
 #include <array>
 #include <cstdint>
+#include <mutex>
+#include <shared_mutex>
+#include <span>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "manager/GameManager.hpp"
@@ -13,6 +17,44 @@ namespace arc_helper {
 
 class HookManager {
 public:
+    class InlineHookRegistration {
+    public:
+        InlineHookRegistration() = default;
+        ~InlineHookRegistration();
+
+        InlineHookRegistration(const InlineHookRegistration &) = delete;
+        InlineHookRegistration &operator=(const InlineHookRegistration &) = delete;
+        InlineHookRegistration(InlineHookRegistration &&other) noexcept;
+        InlineHookRegistration &operator=(InlineHookRegistration &&other) noexcept;
+
+        explicit operator bool() const { return state_ != State::Invalid; }
+
+    private:
+        friend class HookManager;
+
+        enum class State : uint8_t {
+            Invalid = 0,
+            Pending,
+            Installed,
+            Committed,
+        };
+
+        InlineHookRegistration(HookManager *owner,
+                               uintptr_t target_addr,
+                               void *hook_handler,
+                               const char *name,
+                               State state);
+        void Reset();
+
+        HookManager *owner_ = nullptr;
+        uintptr_t target_addr_ = 0;
+        void *hook_handler_ = nullptr;
+        void *orig_handler_ = nullptr;
+        void *stub_ = nullptr;
+        const char *name_ = nullptr;
+        State state_ = State::Invalid;
+    };
+
     static HookManager &Instance();
 
     uintptr_t GetLibBase() const;
@@ -23,20 +65,54 @@ public:
                         const std::array<uint8_t, 16> &sig,
                         const char *name,
                         bool allow_offset_if_sig_empty = false);
+    bool ResolveSymbol(uintptr_t &cached_addr,
+                       const char *library_name,
+                       const char *symbol_name,
+                       const char *name);
 
     template <typename HookFn>
-    bool InstallInlineHook(uintptr_t &addr,
-                           uintptr_t hint_offset,
-                           const std::array<uint8_t, 16> &sig,
-                           HookFn hook_fn,
-                           const char *name,
-                           bool allow_offset_if_sig_empty = false) {
-        return InstallInlineHookImpl(addr,
-                                     hint_offset,
-                                     sig,
-                                     reinterpret_cast<void *>(hook_fn),
-                                     name,
-                                     allow_offset_if_sig_empty);
+    InlineHookRegistration RegisterInlineHook(uintptr_t &addr,
+                                              uintptr_t hint_offset,
+                                              const std::array<uint8_t, 16> &sig,
+                                              HookFn hook_fn,
+                                              const char *name,
+                                              bool allow_offset_if_sig_empty = false) {
+        return RegisterInlineHookImpl(addr,
+                                      hint_offset,
+                                      sig,
+                                      reinterpret_cast<void *>(hook_fn),
+                                      name,
+                                      allow_offset_if_sig_empty);
+    }
+
+    template <typename HookFn>
+    InlineHookRegistration RegisterInlineHookAbsolute(uintptr_t addr,
+                                                      const std::array<uint8_t, 16> &sig,
+                                                      HookFn hook_fn,
+                                                      const char *name) {
+        return RegisterInlineHookAbsoluteImpl(addr,
+                                              sig,
+                                              reinterpret_cast<void *>(hook_fn),
+                                              name);
+    }
+
+    template <typename HookFn>
+    InlineHookRegistration RegisterInlineHookSymbol(uintptr_t &addr,
+                                                    const char *library_name,
+                                                    const char *symbol_name,
+                                                    const std::array<uint8_t, 16> &sig,
+                                                    HookFn hook_fn,
+                                                    const char *name) {
+        if (!ResolveSymbol(addr, library_name, symbol_name, name)) return {};
+        return RegisterInlineHookAbsoluteImpl(addr,
+                                              sig,
+                                              reinterpret_cast<void *>(hook_fn),
+                                              name);
+    }
+
+    bool CommitInlineHook(std::span<InlineHookRegistration> registrations);
+    bool CommitInlineHook(InlineHookRegistration &registration) {
+        return CommitInlineHook(std::span<InlineHookRegistration>(&registration, 1));
     }
 
     template <typename FnOut>
@@ -55,13 +131,9 @@ public:
     bool HasOriginalForHook(void *hook_handler) const;
     static void *GetOriginalForHook(void *hook_handler);
 
-    bool RestoreInlineHook(void *hook_handler);
-    void RestoreAllInlineHooks();
-
     template <auto HookFn, typename RType, typename... Params, typename... Args>
     static RType CallOriginal(RType (*)(Params...), Args&&... args) {
-        static void *orig_ptr = nullptr;
-        if (!orig_ptr) orig_ptr = GetOriginalForHook(reinterpret_cast<void *>(HookFn));
+        void *orig_ptr = GetOriginalForHook(reinterpret_cast<void *>(HookFn));
         if (!orig_ptr) {
             if constexpr (!std::is_void_v<RType>) {
                 return RType{};
@@ -85,20 +157,37 @@ private:
         uintptr_t target_addr = 0;
         void *hook_handler = nullptr;
         void *orig_handler = nullptr;
+        void *stub = nullptr;
         bool active = false;
+        bool rollback_pending = false;
     };
 
     HookManager() = default;
 
-    bool InstallInlineHookImpl(uintptr_t &addr,
-                               uintptr_t hint_offset,
-                               const std::array<uint8_t, 16> &sig,
-                               void *hook_handler,
-                               const char *name,
-                               bool allow_offset_if_sig_empty);
+    InlineHookRegistration RegisterInlineHookImpl(uintptr_t &addr,
+                                                  uintptr_t hint_offset,
+                                                  const std::array<uint8_t, 16> &sig,
+                                                  void *hook_handler,
+                                                  const char *name,
+                                                  bool allow_offset_if_sig_empty);
+    InlineHookRegistration RegisterInlineHookAbsoluteImpl(
+        uintptr_t addr,
+        const std::array<uint8_t, 16> &sig,
+        void *hook_handler,
+        const char *name,
+        bool allow_empty_signature = false);
+
+    bool ValidateHookTarget(uintptr_t addr,
+                            const std::array<uint8_t, 16> &sig,
+                            void *hook_handler,
+                            const char *name,
+                            bool allow_empty_signature) const;
+    bool RollbackRegistration(InlineHookRegistration &registration);
+    bool RetryPendingRollbacks();
 
     InlineHookRecord *FindHookRecordByHook(void *hook_handler);
     const InlineHookRecord *FindHookRecordByHook(void *hook_handler) const;
+    const InlineHookRecord *FindHookRecordByTarget(uintptr_t target_addr) const;
 
     static bool IsAllZeros(const std::array<uint8_t, 16> &sig);
 
@@ -106,7 +195,10 @@ private:
     mem::AddressResolver resolver_;
     bool logged_unready_ = false;
 
+    mutable std::recursive_mutex mutation_mutex_{};
+    mutable std::shared_mutex records_mutex_{};
     std::vector<InlineHookRecord> inline_hooks_{};
+    std::vector<void *> symbol_handles_{};
 };
 
 } // namespace arc_helper

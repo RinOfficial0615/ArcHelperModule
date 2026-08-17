@@ -1,6 +1,7 @@
 #pragma once
 
 #include "features/Feature.hpp"
+#include "config/GameProfile.hpp"
 #include "manager/NetworkManager.hpp"
 
 namespace arc_helper {
@@ -12,11 +13,19 @@ namespace arc_helper {
 class NetworkBlock : public Feature {
 public:
     static NetworkBlock &Instance();
+    void Install(const cfg::GameProfile &profile, bool force_isolation);
 
 private:
-    explicit NetworkBlock(bool enabled);
+    NetworkBlock();
 
     static bool HandleNetworkRequest(NetworkManager::HandlerArgs &args);
+
+    bool installed_ = false;
+    bool isolation_enabled_ = false;
+    AH_CFG(enabled, true);
+    AH_CFG(block_all_requests, false);
+    AH_CFG(block_all_non_get, false);
+    AH_CFG(blocked_log_limit, uint32_t{50});
 };
 
 } // namespace arc_helper

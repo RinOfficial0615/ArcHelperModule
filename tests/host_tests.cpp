@@ -5,8 +5,16 @@
 
 #include <nlohmann/json.hpp>
 
+#include "manager/network/NetworkHandler.hpp"
 #include "utils/Sha256.hpp"
 #include "utils/ZipArchive.hpp"
+
+namespace {
+
+bool LowHandler(arc_helper::network::HandlerArgs &) { return false; }
+bool HighHandler(arc_helper::network::HandlerArgs &) { return false; }
+
+} // namespace
 
 int main(int argc, char **argv) {
     using namespace arc_helper;
@@ -20,6 +28,34 @@ int main(int argc, char **argv) {
     }
     assert(crypto::Sha256Hex("abc", 3) ==
            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert(std::string_view(network::HttpMethodStr(0)) == "GET");
+    assert(std::string_view(network::HttpMethodStr(3)) == "DELETE");
+    assert(std::string_view(network::HttpMethodStr(99)) == "UNK");
+    assert(network::HttpMethodBit(0) == cfg::network_block::kMethodGet);
+    assert(network::HttpMethodBit(3) == cfg::network_block::kMethodDelete);
+    assert(network::HttpMethodBit(99) == 0);
+
+    {
+        const auto empty = network::HandlerSnapshot::Empty();
+        const auto low = empty->With({"low", 10, 0, LowHandler});
+        const auto ordered = low->With({"high", 20, 1, HighHandler});
+        assert(empty->Entries().empty());
+        assert(low->Entries().size() == 1);
+        assert(ordered->Entries().size() == 2);
+        assert(ordered->Entries()[0].name == "high");
+        assert(ordered->Entries()[1].name == "low");
+        assert(ordered->Contains("high", nullptr) == true);
+
+        network::BufferView view{};
+        view.data = reinterpret_cast<const uint8_t *>("payload");
+        view.full_len = 7;
+        view.show_len = 7;
+        view.status = network::BufferViewStatus::Ok;
+        const auto limited = view.Limit(3);
+        assert(limited.show_len == 3);
+        assert(limited.full_len == 7);
+        assert(limited.Truncated());
+    }
 
     for (int i = 1; i < argc; ++i) {
         bool expect_fail = false;

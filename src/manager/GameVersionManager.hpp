@@ -7,6 +7,7 @@
 #endif
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 #include "config/GameProfile.hpp"
@@ -34,17 +35,15 @@ public:
 
     bool EnsureInstalled();
 
-    bool IsResolved() const { return active_profile_ != nullptr; }
-    const cfg::GameProfile *GetActiveProfile() const { return active_profile_; }
+    bool IsResolved() const;
+    const cfg::GameProfile *GetActiveProfile() const;
     cfg::GameVersionId GetActiveVersionId() const;
-    const std::string &GetResolvedVersionString() const { return resolved_version_string_; }
+    std::string GetResolvedVersionString() const;
 
 private:
     GameVersionManager() = default;
 
     bool EnsureLibBase();
-    const cfg::GameProfile *DetectCandidateProfile() const;
-    bool MatchSetterSignature(uintptr_t offset) const;
 
     bool TryResolveFromString(const char *version_string);
     bool TryResolveFromGlobal(const cfg::GameProfile &profile);
@@ -58,10 +57,10 @@ private:
     static void SetAppVersionHook(JNIEnv *env, jobject receiver, jstring version_string);
 
     HookManager &hook_manager_ = HookManager::Instance();
+    mutable std::recursive_mutex mutex_{};
     uintptr_t lib_base_ = 0;
-    uintptr_t addr_set_app_version_ = 0;
+    uintptr_t resolved_setter_addr_ = 0;
 
-    const cfg::GameProfile *candidate_profile_ = nullptr;
     const cfg::GameProfile *active_profile_ = nullptr;
 
     std::string resolved_version_string_{};

@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include <magic_enum/magic_enum.hpp>
+
 namespace arc_helper::cfg {
 
 enum class GameVersionId : uint8_t {
@@ -16,7 +18,6 @@ enum class GameVersionId : uint8_t {
 };
 
 struct VersionProbeOffsets {
-    uintptr_t set_app_version = 0;
     uintptr_t app_version_string = 0;
 };
 
@@ -44,6 +45,8 @@ struct NetworkOffsets {
 struct SslPinsOffsets {
     uintptr_t skip_cbz = 0;     // CBZ X20,skip → B skip
     uintptr_t tail_call = 0;    // BL sub_XXXX → NOP
+    uint32_t expected_skip_cbz = 0;
+    uint32_t expected_tail_call = 0;
 };
 
 struct CustomChartsOffsets {
@@ -53,6 +56,11 @@ struct CustomChartsOffsets {
     // an exact caller match; the nearby integrity/preload caller is official.
     uintptr_t songlist_asset_loader_caller = 0;
     uintptr_t asset_bundle_loader = 0;
+    uintptr_t songlist_digest_size_guard = 0;
+    uintptr_t songlist_digest_compare_guard = 0;
+    uintptr_t songlist_difficulty_filter = 0;
+    uintptr_t song_registry_global = 0;
+    uintptr_t find_song_by_id = 0;
 };
 
 struct FeatureCapabilities {
@@ -77,7 +85,6 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .id = GameVersionId::k61211c,
         .version_name = "6.12.11c",
         .version_probe = {
-            .set_app_version = 0xDDD160,
             .app_version_string = 0x1918CD0,
         },
         .autoplay = {
@@ -102,6 +109,8 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .ssl_pins = {
             .skip_cbz = 0xBBCB24,
             .tail_call = 0xBBF3F0,
+            .expected_skip_cbz = 0xB40000F4,
+            .expected_tail_call = 0x97F866C5,
         },
         .capabilities = {.autoplay = true, .network = true},
     },
@@ -109,7 +118,6 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .id = GameVersionId::k6132f,
         .version_name = "6.13.2f",
         .version_probe = {
-            .set_app_version = 0xBD57DC,
             .app_version_string = 0x1872370,
         },
         .autoplay = {
@@ -138,7 +146,6 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .id = GameVersionId::k6140c,
         .version_name = "6.14.0c",
         .version_probe = {
-            .set_app_version = 0x89F528,
             .app_version_string = 0x1984120,
         },
         .autoplay = {
@@ -163,6 +170,8 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .ssl_pins = {
             .skip_cbz = 0x10D462C,
             .tail_call = 0x10D6EF8,
+            .expected_skip_cbz = 0xB40000F4,
+            .expected_tail_call = 0x97E6365C,
         },
         .capabilities = {.autoplay = true, .network = true},
     },
@@ -170,7 +179,6 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
         .id = GameVersionId::k6162c,
         .version_name = "6.16.2c",
         .version_probe = {
-            .set_app_version = 0x896058,
             .app_version_string = 0x1A9C880,
         },
         .autoplay = {
@@ -197,10 +205,29 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
             .songlist_parser = 0xCA2280,
             .songlist_asset_loader_caller = 0x142CFB0,
             .asset_bundle_loader = 0x100F3E8,
+            .songlist_digest_size_guard = 0x100F814,
+            .songlist_digest_compare_guard = 0x100F830,
+            .songlist_difficulty_filter = 0x12638FC,
+            .song_registry_global = 0x1AAB6E0,
+            .find_song_by_id = 0xCADFA4,
         },
         .capabilities = {.autoplay = true, .network = true, .custom_charts = true},
     },
 }};
+
+consteval bool GameProfilesCoverKnownVersions() {
+    for (const GameVersionId version : magic_enum::enum_values<GameVersionId>()) {
+        size_t matches = 0;
+        for (const auto &profile : kSupportedGameProfiles) {
+            if (profile.id == version) ++matches;
+        }
+        if (matches != (version == GameVersionId::kUnknown ? 0u : 1u)) return false;
+    }
+    return true;
+}
+
+static_assert(GameProfilesCoverKnownVersions(),
+              "each known game version must have exactly one profile");
 
 inline bool GameVersionMatches(const char *actual, const char *expected) {
     return actual && expected && std::strcmp(actual, expected) == 0;

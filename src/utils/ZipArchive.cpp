@@ -1,10 +1,14 @@
 #include "utils/ZipArchive.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <set>
+#include <thread>
 
 #include <zlib.h>
 
@@ -121,8 +125,11 @@ bool Archive::Open(const std::string &path, std::string &error) {
                 entry.uncompressed_size / entry.compressed_size > 200) {
                 error = "compression ratio limit"; return false;
             }
+            if (entry.uncompressed_size > kMaxTotalOutputBytes - total_output) {
+                error = "total output limit";
+                return false;
+            }
             total_output += entry.uncompressed_size;
-            if (total_output > kMaxTotalOutputBytes) { error = "total output limit"; return false; }
         }
         if (!by_name_.emplace(entry.name, entries_.size()).second) { error = "duplicate normalized path"; return false; }
         entries_.push_back(std::move(entry));
@@ -141,15 +148,36 @@ const Entry *Archive::Find(std::string_view normalized_name) const {
 
 bool Archive::Extract(const Entry &entry, std::vector<uint8_t> &out, std::string &error) const {
     out.clear(); error.clear();
-    if (entry.directory || entry.local_header_offset + 30ull > bytes_.size()) { error = "local header bounds"; return false; }
+    const Entry *canonical = Find(entry.name);
+    if (!canonical || canonical->directory != entry.directory ||
+        canonical->flags != entry.flags || canonical->method != entry.method ||
+        canonical->crc32 != entry.crc32 || canonical->compressed_size != entry.compressed_size ||
+        canonical->uncompressed_size != entry.uncompressed_size ||
+        canonical->local_header_offset != entry.local_header_offset) {
+        error = "entry is not part of archive";
+        return false;
+    }
+    if (entry.directory || entry.local_header_offset > bytes_.size() ||
+        bytes_.size() - entry.local_header_offset < 30) {
+        error = "local header bounds";
+        return false;
+    }
     const uint8_t *header = bytes_.data() + entry.local_header_offset;
     if (U32(header) != kLocalSignature) { error = "invalid local header"; return false; }
     const uint16_t local_flags = U16(header + 6);
     const uint16_t local_method = U16(header + 8);
     const uint16_t name_len = U16(header + 26);
     const uint16_t extra_len = U16(header + 28);
+    const size_t local_payload = bytes_.size() - entry.local_header_offset - 30ull;
+    if (name_len > local_payload || extra_len > local_payload - name_len) {
+        error = "local name bounds";
+        return false;
+    }
     const size_t data_offset = entry.local_header_offset + 30ull + name_len + extra_len;
-    if (data_offset + entry.compressed_size > bytes_.size()) { error = "compressed data bounds"; return false; }
+    if (entry.compressed_size > bytes_.size() - data_offset) {
+        error = "compressed data bounds";
+        return false;
+    }
     if (local_flags != entry.flags || local_method != entry.method || name_len == 0) {
         error = "local/central header mismatch"; return false;
     }
@@ -188,16 +216,39 @@ bool Archive::ExtractToFile(const Entry &entry, const std::string &path, std::st
     std::vector<uint8_t> data;
     if (!Extract(entry, data, error)) return false;
     std::error_code ec;
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path(), ec);
-    if (ec) { error = "create directories failed"; return false; }
-    const std::string tmp = path + ".tmp";
+    const std::filesystem::path target(path);
+    if (!target.parent_path().empty()) {
+        std::filesystem::create_directories(target.parent_path(), ec);
+        if (ec) { error = "create directories failed"; return false; }
+    }
+    static std::atomic_uint64_t temporary_sequence{0};
+    const auto thread_hash = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    const auto sequence = temporary_sequence.fetch_add(1, std::memory_order_relaxed);
+    const std::string tmp = path + ".tmp." + std::to_string(thread_hash) + "." +
+                            std::to_string(sequence);
+    const auto cleanup = [&] {
+        std::error_code cleanup_ec;
+        std::filesystem::remove(tmp, cleanup_ec);
+    };
     std::ofstream file(tmp, std::ios::binary | std::ios::trunc);
     if (!file || !file.write(reinterpret_cast<const char *>(data.data()), data.size())) {
-        error = "write failed"; return false;
+        cleanup();
+        error = "write failed";
+        return false;
+    }
+    file.flush();
+    if (!file) {
+        cleanup();
+        error = "flush failed";
+        return false;
     }
     file.close();
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) { std::filesystem::remove(tmp); error = "atomic rename failed"; return false; }
+    std::filesystem::rename(tmp, target, ec);
+    if (ec) {
+        cleanup();
+        error = "atomic rename failed";
+        return false;
+    }
     return true;
 }
 

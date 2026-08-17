@@ -50,28 +50,13 @@ inline constexpr size_t kHttpResponse_status_code_i64_off  = offsetof(layouts::H
 inline constexpr uint32_t kCurlOpt_URL = 10002;        // CURLOPT_URL
 inline constexpr uint32_t kCurlOpt_WriteData = 10001;  // CURLOPT_WRITEDATA
 inline constexpr uint32_t kCurlOpt_ErrorBuffer = 10010; // CURLOPT_ERRORBUFFER
+inline constexpr size_t kCurlErrorMaxLen = 255;
 
-// Audit logging
-inline constexpr bool kAuditLogAllRequests = true;
-inline constexpr uint32_t kAuditLogLimit = 200;
-inline constexpr bool kAuditStripQuery = true;
-inline constexpr size_t kAuditUrlMaxLen = 240;
-
-// Request body logging (WARNING: may contain sensitive data)
-inline constexpr bool kAuditLogBody = true;
-inline constexpr bool kAuditLogBodyOnlyNonGet = true;
-inline constexpr size_t kAuditBodyMaxBytes = 0; // 0 = unlimited
-
-// Response logging (WARNING: may contain sensitive data)
-inline constexpr bool kAuditLogResponse = true;
-inline constexpr size_t kAuditResponseMaxBytes = 2048; // 0 = unlimited
-
-// Blocking policy
-// - Only the block rules below are applied (plus optional global overrides).
-// - Optionally hard-block all non-GET (POST/PUT/DELETE) for safe testing.
-inline constexpr bool kBlockAllNonGet = false;
-inline constexpr bool kBlockAllRequests = false;
-inline constexpr uint32_t kBlockedLogLimit = 50;
+// URL storage remains compile-time bounded even though logging policy is dynamic.
+inline constexpr size_t kUrlMaxLen = 240;
+// Network payloads are copied as borrowed views before handlers run. This is a
+// producer-side hard cap; the generic logger may apply a smaller sink budget.
+inline constexpr size_t kNetworkBodyCaptureMax = 1024;
 
 enum class RuleMatchType : uint8_t {
     PathPrefix,

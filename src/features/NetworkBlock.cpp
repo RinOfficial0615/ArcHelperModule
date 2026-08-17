@@ -2,34 +2,17 @@
 
 #include <cstdint>
 #include <cstring>
+#include <atomic>
 #include <string_view>
 
-#include "config/ModuleConfig.h"
 #include "config/NetworkBlockConfig.h"
-#include "config/RuntimeConfig.hpp"
-#include "features/CustomSession.hpp"
 #include "utils/Log.h"
 
 namespace arc_helper {
 namespace {
 
-uint32_t g_blocked_count = 0;
-bool g_logged_block_active = false;
-
-uint8_t MethodBit(uint32_t req_type) {
-    switch (req_type) {
-    case 0:
-        return cfg::network_block::kMethodGet;
-    case 1:
-        return cfg::network_block::kMethodPost;
-    case 2:
-        return cfg::network_block::kMethodPut;
-    case 3:
-        return cfg::network_block::kMethodDelete;
-    default:
-        return 0;
-    }
-}
+std::atomic_uint64_t g_blocked_count{0};
+std::atomic_bool g_logged_block_active{false};
 
 bool EndsWithPath(const char *url, const char *path) {
     if (!url || !path) return false;
@@ -49,13 +32,10 @@ bool EndsWithPath(const char *url, const char *path) {
 
 bool HasPathPrefix(const char *url, const char *path_prefix) {
     if (!url || !path_prefix) return false;
-    const size_t n = std::strlen(path_prefix);
-    if (n == 0) return false;
-
-    const char *p = std::strstr(url, path_prefix);
-    if (!p) return false;
-
-    const char after = p[n];
+    const std::string_view url_view(url);
+    const std::string_view prefix(path_prefix);
+    if (prefix.empty() || !url_view.starts_with(prefix)) return false;
+    const char after = url_view.size() == prefix.size() ? '\0' : url_view[prefix.size()];
     return after == '\0' || after == '/';
 }
 
@@ -72,32 +52,33 @@ bool MatchRule(const cfg::network_block::NetworkBlockRule &rule, const char *url
     }
 }
 
-bool ShouldBlock(const NetworkManager::HandlerArgs &args, const char **out_reason) {
+bool ShouldBlock(const NetworkManager::HandlerArgs &args,
+                 bool ordinary_enabled,
+                 bool isolation_enabled,
+                 bool block_all_requests,
+                 bool block_all_non_get,
+                 const char **out_reason) {
     if (out_reason) *out_reason = "none";
 
-    if (CustomSession::Instance().IsActive()) {
-        if (out_reason) *out_reason = "custom-session-all-network";
-        return true;
-    }
-    if (!RuntimeConfig::Instance().NetworkBlockEnabled()) return false;
-    if (cfg::network_block::kBlockAllRequests) {
+    if (!ordinary_enabled && !isolation_enabled) return false;
+    if (ordinary_enabled && block_all_requests) {
         if (out_reason) *out_reason = "all";
         return true;
     }
-    if (cfg::network_block::kBlockAllNonGet && args.request_type != 0) {
+    if (ordinary_enabled && block_all_non_get && args.request_type != 0) {
         if (out_reason) *out_reason = "non-get";
         return true;
     }
-    if (args.url[0] == '\0') {
+    if (args.url_truncated || args.url_path[0] == '\0') {
         return false;
     }
 
-    const uint8_t method = MethodBit(args.request_type);
+    const uint8_t method = network::HttpMethodBit(args.request_type);
     if (method == 0) return false;
 
     for (const auto &rule : cfg::network_block::kBlockRules) {
         if ((rule.method_mask & method) == 0) continue;
-        if (!MatchRule(rule, args.url)) continue;
+        if (!MatchRule(rule, args.url_path)) continue;
         if (out_reason) *out_reason = rule.reason ? rule.reason : "rule";
         return true;
     }
@@ -108,32 +89,36 @@ bool ShouldBlock(const NetworkManager::HandlerArgs &args, const char **out_reaso
 } // namespace
 
 NetworkBlock &NetworkBlock::Instance() {
-    if constexpr (!cfg::module::kNetworkBlockEnabled) {
-        static NetworkBlock disabled(false);
-        return disabled;
-    } else {
-        RuntimeConfig::Instance().EnsureLoaded();
-        // Custom-chart isolation is mandatory even when ordinary URL rules are disabled.
-        static NetworkBlock enabled(RuntimeConfig::Instance().NetworkBlockEnabled() ||
-                                    RuntimeConfig::Instance().CustomChartsEnabled());
-        return enabled;
-    }
+    static NetworkBlock feature;
+    return feature;
 }
 
-NetworkBlock::NetworkBlock(bool enabled) {
-    if (!enabled) return;
+NetworkBlock::NetworkBlock() : Feature("NetworkBlock") {}
 
+void NetworkBlock::Install(const cfg::GameProfile &profile, bool force_isolation) {
+    (void)profile;
+    isolation_enabled_ = force_isolation;
+    if (installed_) return;
+    if (!enabled_ && !isolation_enabled_) {
+        installed_ = true;
+        return;
+    }
     const bool ok = NetworkManager::Instance().RegisterHandler(
         "NetworkBlock", cfg::network_block::kHandlerPriorityNetworkBlock, HandleNetworkRequest);
 
+    installed_ = ok;
     ARC_LOGI("NetworkBlock: handler registration %s", ok ? "OK" : "FAILED");
 }
 
 bool NetworkBlock::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
     if (args.phase != NetworkManager::Phase::BeforeRequest) return false;
 
+    auto &feature = Instance();
     const char *reason = "none";
-    if (!ShouldBlock(args, &reason)) return false;
+    if (!ShouldBlock(args, feature.enabled_, feature.isolation_enabled_,
+                     feature.block_all_requests_, feature.block_all_non_get_, &reason)) {
+        return false;
+    }
 
     args.blocked = true;
     if (reason) {
@@ -144,15 +129,17 @@ bool NetworkBlock::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
         args.block_reason[copy_n] = '\0';
     }
 
-    g_blocked_count += 1;
-    if (!g_logged_block_active) {
-        g_logged_block_active = true;
+    const uint64_t blocked_count = g_blocked_count.fetch_add(1, std::memory_order_relaxed) + 1;
+    bool expected = false;
+    if (g_logged_block_active.compare_exchange_strong(expected, true,
+                                                       std::memory_order_relaxed,
+                                                       std::memory_order_relaxed)) {
         ARC_LOGI("NetworkBlock: blocking enabled");
     }
 
-    if (cfg::network_block::kBlockedLogLimit == 0 || g_blocked_count <= cfg::network_block::kBlockedLogLimit) {
-        ARC_LOGI("NetworkBlock: BLOCK #%u %s %s (reason=%s)",
-                 g_blocked_count,
+    if (feature.blocked_log_limit_ == 0 || blocked_count <= feature.blocked_log_limit_) {
+        ARC_LOGI("NetworkBlock: BLOCK #%llu %s %s (reason=%s)",
+                 static_cast<unsigned long long>(blocked_count),
                  args.MethodStr(),
                  args.url[0] ? args.url : "(null)",
                  args.block_reason[0] ? args.block_reason : "blocked");

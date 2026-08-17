@@ -15,12 +15,10 @@ namespace {
 std::atomic<bool> g_jni_wrapper_inited = false;
 std::atomic<bool> g_jni_retry_started = false;
 
-// ReLinker loads this library before the game's version callback.  Generate
-// the user-editable runtime config at load time so a fresh install always has
-// a readable, beautified baseline even when offset resolution is still
-// pending.
-__attribute__((constructor)) void GenerateDefaultRuntimeConfigAtLoad() {
-    arc_helper::RuntimeConfig::Instance().EnsureLoaded();
+void ClearPendingJniException(JNIEnv *env, const char *where) {
+    if (!env || !env->ExceptionCheck()) return;
+    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
+    env->ExceptionClear();
 }
 
 std::string PrepareRuntimeRoot(JavaVM *vm) {
@@ -31,10 +29,14 @@ std::string PrepareRuntimeRoot(JavaVM *vm) {
     }
 
     jclass activity_thread = env->FindClass("android/app/ActivityThread");
-    if (!activity_thread) return {};
+    if (!activity_thread) {
+        ClearPendingJniException(env, "FindClass(ActivityThread)");
+        return {};
+    }
     jmethodID current_application = env->GetStaticMethodID(
         activity_thread, "currentApplication", "()Landroid/app/Application;");
     if (!current_application) {
+        ClearPendingJniException(env, "GetStaticMethodID(currentApplication)");
         env->DeleteLocalRef(activity_thread);
         return {};
     }
@@ -46,6 +48,12 @@ std::string PrepareRuntimeRoot(JavaVM *vm) {
     }
 
     jclass context = env->GetObjectClass(application);
+    if (!context) {
+        ClearPendingJniException(env, "GetObjectClass(application)");
+        env->DeleteLocalRef(application);
+        env->DeleteLocalRef(activity_thread);
+        return {};
+    }
     jmethodID get_external_files_dir = env->GetMethodID(
         context, "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
     jobject external_files_dir = get_external_files_dir
@@ -77,6 +85,7 @@ std::string PrepareRuntimeRoot(JavaVM *vm) {
     }
 
     const char *path_utf8 = env->GetStringUTFChars(external_path, nullptr);
+    if (!path_utf8) ClearPendingJniException(env, "GetStringUTFChars(external path)");
     const std::string root = path_utf8 ? std::string(path_utf8) + "/ArcHelper" : std::string{};
     if (path_utf8) env->ReleaseStringUTFChars(external_path, path_utf8);
 
@@ -85,11 +94,13 @@ std::string PrepareRuntimeRoot(JavaVM *vm) {
         jmethodID mkdirs = env->GetMethodID(file_class, "mkdirs", "()Z");
         if (file_ctor && mkdirs && !root.empty()) {
             jstring root_string = env->NewStringUTF(root.c_str());
-            jobject root_file = env->NewObject(file_class, file_ctor, root_string);
+            jobject root_file = root_string
+                                    ? env->NewObject(file_class, file_ctor, root_string)
+                                    : nullptr;
             if (root_file) env->CallBooleanMethod(root_file, mkdirs);
             if (env->ExceptionCheck()) env->ExceptionClear();
             if (root_file) env->DeleteLocalRef(root_file);
-            env->DeleteLocalRef(root_string);
+            if (root_string) env->DeleteLocalRef(root_string);
         }
         env->DeleteLocalRef(file_class);
     }
@@ -128,9 +139,9 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
 
     const std::string runtime_root = PrepareRuntimeRoot(vm);
     if (!runtime_root.empty()) {
-        arc_helper::RuntimeConfig::Instance().SetRootDir(runtime_root);
+        arc_helper::ConfigManager::Instance().SetRootDir(runtime_root);
     }
-    arc_helper::RuntimeConfig::Instance().EnsureLoaded();
+    arc_helper::wrapper::PrepareFeatures();
 
     if (g_jni_wrapper_inited.load(std::memory_order_relaxed)) {
         return JNI_VERSION_1_6;

@@ -20,7 +20,9 @@ public:
                                      size_t &out_count);
     static bool GetPermissions(uintptr_t addr, int &out_perms);
     static bool IsReadable(uintptr_t addr, size_t len);
+    static bool IsWritable(uintptr_t addr, size_t len);
     static bool IsExecutable(uintptr_t addr);
+    static void InvalidatePermissionCache();
 };
 
 } // namespace arc_helper::mem

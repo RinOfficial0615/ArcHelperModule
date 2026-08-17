@@ -1,12 +1,13 @@
 #include <jni.h>
 
 #include <cstring>
+#include <string_view>
 
 #include <fcntl.h>
 #include <unistd.h>
 
 #include "wrapper/WrapperCommon.hpp"
-#include "config/RuntimeConfig.hpp"
+#include "manager/ConfigManager.hpp"
 #include "config/ScopeConfig.hpp"
 #include <zygisk.hpp>
 
@@ -28,30 +29,50 @@ void ClearPendingJniException(JNIEnv *env, const char *where) {
 
 using OrigNativeLoad = jstring (*)(JNIEnv *, jclass, jstring, jobject, jobject);
 
+jstring Runtime_nativeLoad_hook(JNIEnv *env,
+                                jclass runtime_class,
+                                jstring java_file_name,
+                                jobject java_loader,
+                                jobject caller);
+
 // When called from zygisk's hookJniNativeMethods path, fnPtr holds the
 // real Runtime.nativeLoad.  A non-capturing helper avoids the lambda-static
 // bug (static [&] captures stale stack pointers after the first invocation).
 inline jstring CallOrigNativeLoad(JNIEnv *env, jclass cls, jstring name,
                                   jobject loader, jobject caller) {
-    return reinterpret_cast<OrigNativeLoad>(g_jni_method_hooks[0].fnPtr)(
-        env, cls, name, loader, caller);
+    const auto original = reinterpret_cast<OrigNativeLoad>(g_jni_method_hooks[0].fnPtr);
+    if (!original || original == Runtime_nativeLoad_hook) {
+        ARC_LOGE("Runtime.nativeLoad original pointer unavailable");
+        return nullptr;
+    }
+    return original(env, cls, name, loader, caller);
+}
+
+bool IsTargetLibraryPath(const char *path) {
+    if (!path) return false;
+    const std::string_view value(path);
+    const size_t separator = value.find_last_of("/\\");
+    const std::string_view basename = separator == std::string_view::npos
+                                          ? value
+                                          : value.substr(separator + 1);
+    return basename == cfg::module::kLibName;
 }
 
 jstring Runtime_nativeLoad_hook(JNIEnv *env,
                                 jclass runtime_class,
                                 jstring java_file_name,
                                 jobject java_loader,
-                                jobject /*caller*/) {
+                                jobject caller) {
     if (!java_file_name)
-        return CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, java_loader);
+        return CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, caller);
 
     const char *lib_name = env->GetStringUTFChars(java_file_name, nullptr);
     if (!lib_name) {
         ClearPendingJniException(env, "GetStringUTFChars(nativeLoad arg)");
-        return CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, java_loader);
+        return CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, caller);
     }
 
-    bool is_target = std::strstr(lib_name, cfg::module::kLibName) != nullptr;
+    const bool is_target = IsTargetLibraryPath(lib_name);
     if (is_target) {
         jclass cls = env->FindClass(cfg::module::kRuntimeClass);
         if (cls) {
@@ -66,7 +87,7 @@ jstring Runtime_nativeLoad_hook(JNIEnv *env,
         }
     }
 
-    auto ret = CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, java_loader);
+    auto ret = CallOrigNativeLoad(env, runtime_class, java_file_name, java_loader, caller);
     env->ReleaseStringUTFChars(java_file_name, lib_name);
     if (ret != nullptr) return ret;
 
@@ -143,7 +164,7 @@ public:
         const int scope_dirfd = api_->getModuleDir();
         const bool enable_module = cfg::scope::IsTargetPackage(scope_dirfd, package_name);
         if (scope_dirfd >= 0) close(scope_dirfd);
-        if (enable_module) RuntimeConfig::Instance().SetPackageName(package_name);
+        if (enable_module) ConfigManager::Instance().SetPackageName(package_name);
         env_->ReleaseStringUTFChars(args->nice_name, package_name);
 
         if (!enable_module) {

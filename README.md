@@ -32,11 +32,11 @@ Artifact: `build/ArcHelperModule.zip`
 
 | Feature | `config.json` key | Purpose |
 |---------|-------------------|---------|
-| Autoplay | `autoplay` | Drive arcs & holds, force Pure, suppress effects |
-| Network logging | `networkLogger` | Audit HTTP request / response traffic (off by default) |
-| Ordinary network block | `networkBlock` | Apply score/world-mode URL rules; mandatory custom-session isolation remains independent |
-| SSL pinning bypass | `sslPinningBypass` | Remove SSL pinning on profiles with complete patch offsets (off by default) |
-| Custom charts | `customCharts` | Load `.arcpkg` and raw ZIP at startup; force-block all network during local sessions |
+| Autoplay | `Autoplay` | Drive arcs & holds, force Pure, suppress effects |
+| Network logging | `NetworkLogger` | Audit HTTP request / response traffic (off by default) |
+| Ordinary network block | `NetworkBlock` | Apply score/world-mode URL rules; mandatory custom-chart isolation remains independent |
+| SSL pinning bypass | `SslPinningBypass` | Remove SSL pinning on profiles with complete patch offsets (off by default) |
+| Custom charts | `CustomCharts` | Load `.arcpkg` and raw ZIP at startup with fixed network-isolation rules |
 
 ## Runtime version detection
 
@@ -44,19 +44,19 @@ Hooks are not installed immediately. `GameVersionManager` probes the game build 
 
 ## Configuration layout
 
-Runtime directory: `Android/data/<package>/files/ArcHelper/`. The module creates a default `config.json`, scans `charts/` at startup, and writes `manifest.json` plus `import-report.json`.
+Runtime directory: `Android/data/<package>/files/ArcHelper/`. Feature instances generate and normalize `config.json`, custom charts are scanned from `charts/`, and process logs are written under `logs/` with five files retained.
 
-Configuration and packages are read once per process. A malformed global configuration falls back to all defaults. A raw ZIP needs only audio plus AFF files; absent metadata defaults to `side=1`, `bg=base_conflict`, an official fallback jacket, and deterministic title/BPM values. The first release supports custom difficulty slots `0..3`.
+Configuration and packages are read once per process. Invalid registered values are rewritten to defaults while unknown keys are preserved; malformed JSON regenerates all Feature defaults. A raw ZIP needs only audio plus AFF files, and custom difficulty slots `0..4` are supported.
 
 - `src/config/GameProfile.hpp` — per-version function / RTTI / patch offsets
 - `src/config/GameStructs.hpp` — game object layouts (padded, compile-time verified)
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
-- `src/config/ModuleConfig.h` — feature toggles, target package names
+- `src/config/ModuleConfig.h` — module identity and target library names
 - `module/config.example.json` — example runtime configuration
 - `module/scope.txt` — module scope packaged at the ZIP root
 
-Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, and `third_party/lsplt`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. The Zygisk API header is stored at `third_party/zygisk.hpp`.
+Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, `third_party/lsplt`, and `third_party/magic_enum`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. `magic_enum` is pinned to v0.9.8. The Zygisk API header is stored at `third_party/zygisk.hpp`.
 
 ## AI
 

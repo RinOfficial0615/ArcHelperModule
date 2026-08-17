@@ -54,8 +54,6 @@ inline constexpr size_t kArc_playScene_vcall_off               = 0x530;
 inline constexpr int kSynthTouchBaseId = 100;
 inline constexpr int kMaxSynthTouches = 16;
 inline constexpr int kSynthTouchHoldId = kSynthTouchBaseId + kMaxSynthTouches;
-inline constexpr int kLongStartLeadMs = 0;
-inline constexpr int kLongEndLagMs = 0;
 
 // Track coordinate constants.
 inline constexpr float kTrackHalfWidth = 425.0f;

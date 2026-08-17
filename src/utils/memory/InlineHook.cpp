@@ -1,58 +1,44 @@
 #include "utils/memory/InlineHook.hpp"
 
-#include <cstring>
+#if defined(__ANDROID__)
 
-#include <sys/mman.h>
-
-#include "utils/memory/MemoryPrimitives.hpp"
-#include "utils/memory/PatchHelpers.hpp"
-#include "utils/memory/Patcher.hpp"
+#include "utils/memory/ShadowHookAdapter.hpp"
 
 namespace arc_helper::mem {
-namespace {
 
-constexpr size_t kTrampSize = 64;
-
-} // namespace
-
-bool InlineHook::InstallA64(uintptr_t target, void *hook_fn, void **orig_fn_out) {
-    if (!hook_fn || !orig_fn_out) return false;
-
-    void *tramp = mmap(nullptr,
-                       kTrampSize,
-                       PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANONYMOUS,
-                       -1,
-                       0);
-    if (tramp == MAP_FAILED) return false;
-
-    memcpy(tramp, reinterpret_cast<void *>(target), 16);
-
-    const uintptr_t tramp_jmp = reinterpret_cast<uintptr_t>(tramp) + 16;
-    detail::WriteA64AbsoluteJumpStub(tramp_jmp, target + 16);
-    __builtin___clear_cache(reinterpret_cast<char *>(tramp),
-                            reinterpret_cast<char *>(reinterpret_cast<uintptr_t>(tramp) + 32));
-
-    if (mprotect(tramp, kTrampSize, PROT_READ | PROT_EXEC) != 0) {
-        munmap(tramp, kTrampSize);
-        return false;
-    }
-
-    if (!Patcher::PatchA64AbsoluteJump(target, reinterpret_cast<uintptr_t>(hook_fn))) {
-        munmap(tramp, kTrampSize);
-        return false;
-    }
-
-    *orig_fn_out = tramp;
-    return true;
+bool InlineHook::InstallA64(uintptr_t target,
+                            void *hook_fn,
+                            void **orig_fn_out,
+                            void **stub_out) {
+    return ShadowHookAdapter::Install(target, hook_fn, orig_fn_out, stub_out);
 }
 
-bool InlineHook::RestoreA64(uintptr_t target, void *orig_fn) {
-    if (!target || !orig_fn) return false;
-
-    const bool ok = Patcher::PatchBytesWithPerms(target, orig_fn, 16);
-    (void)munmap(orig_fn, kTrampSize);
-    return ok;
+bool InlineHook::RestoreA64(uintptr_t, void *orig_fn, void *stub) {
+    // ShadowHook owns the trampoline lifetime; the opaque stub is the only
+    // valid handle for unhooking. The original pointer is retained by callers
+    // solely for invoking the trampoline.
+    (void)orig_fn;
+    return ShadowHookAdapter::Uninstall(stub);
 }
 
 } // namespace arc_helper::mem
+
+#else
+
+// Host builds do not execute AArch64 hooks. Keeping a fail-closed backend
+// makes accidental host installation attempts explicit and linkable.
+namespace arc_helper::mem {
+
+bool InlineHook::InstallA64(uintptr_t, void *, void **orig_fn_out, void **stub_out) {
+    if (orig_fn_out) *orig_fn_out = nullptr;
+    if (stub_out) *stub_out = nullptr;
+    return false;
+}
+
+bool InlineHook::RestoreA64(uintptr_t, void *, void *) {
+    return false;
+}
+
+} // namespace arc_helper::mem
+
+#endif

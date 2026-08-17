@@ -7,11 +7,4 @@ inline constexpr const char *kLogTag = "ArcHelper";
 inline constexpr const char *kRuntimeClass = "java/lang/Runtime";
 inline constexpr const char *kLibName = "libcocos2dcpp.so";
 
-// Compile-time feature switches.
-inline constexpr bool kAutoplayEnabled = true;
-inline constexpr bool kNetworkLoggerEnabled = true;
-inline constexpr bool kNetworkBlockEnabled = true;
-// Compile the optional feature in; RuntimeConfig keeps it disabled by default.
-inline constexpr bool kDisableSslPinsEnabled = true;
-
 } // namespace arc_helper::cfg::module

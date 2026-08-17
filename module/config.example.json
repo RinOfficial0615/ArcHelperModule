@@ -1,7 +1,51 @@
 {
-  "autoplay": true,
-  "networkLogger": false,
-  "networkBlock": true,
-  "sslPinningBypass": false,
-  "customCharts": true
+  "Logging": {
+    "logcat": {
+      "enabled": true,
+      "max_length": 1024
+    },
+    "file": {
+      "enabled": true,
+      "max_length": 0
+    }
+  },
+  "Autoplay": {
+    "enabled": true,
+    "long_start_lead_ms": 0,
+    "long_end_lag_ms": 0
+  },
+  "NetworkLogger": {
+    "enabled": false,
+    "log_all_requests": true,
+    "log_request_body": true,
+    "request_body_only_non_get": true,
+    "log_response": true,
+    "strip_query": true,
+    "request_limit": 200,
+    "body_capture_limit": 1024
+  },
+  "NetworkBlock": {
+    "enabled": true,
+    "block_all_requests": false,
+    "block_all_non_get": false,
+    "blocked_log_limit": 50
+  },
+  "CustomCharts": {
+    "enabled": true,
+    "default_artist": "Unknown",
+    "default_designer": "Unknown",
+    "default_bpm": 120.0,
+    "default_side": 1,
+    "default_background": "base_conflict",
+    "default_preview_start_ms": 0,
+    "default_preview_duration_ms": 30000,
+    "default_chart_difficulty": 2,
+    "default_rating": 0,
+    "fallback_song_id": "chart",
+    "rating_plus_minimum_rating": 7,
+    "rating_plus_threshold": 0.69999
+  },
+  "SslPinningBypass": {
+    "enabled": false
+  }
 }

@@ -1,3 +1,5 @@
+$ErrorActionPreference = "Stop"
+
 $BuildMode = "DEBUG"
 $ExtraCppFlags = ""
 $ExtraNdkFlags = ""
@@ -167,6 +169,31 @@ if (-not (Test-Path "build")) {
     New-Item -ItemType Directory -Path "build" | Out-Null
 }
 
+# Keep the pinned LSPlt submodule clean. ArcHelper's live-PLT compatibility
+# patch is applied to a disposable build copy so a clean clone is reproducible.
+$LspltSourceDir = Join-Path $PSScriptRoot "third_party/lsplt/lsplt"
+$LspltStageRoot = Join-Path $PSScriptRoot "build/generated/lsplt"
+$LspltPatch = Join-Path $PSScriptRoot "patches/lsplt-live-plt.patch"
+if (-not (Test-Path $LspltSourceDir) -or -not (Test-Path $LspltPatch)) {
+    Write-LogError "LSPlt submodule or ArcHelper patch is missing"
+    exit 1
+}
+if (Test-Path $LspltStageRoot) {
+    Remove-Item -LiteralPath $LspltStageRoot -Recurse -Force
+}
+New-Item -ItemType Directory -Path $LspltStageRoot -Force | Out-Null
+Copy-Item -LiteralPath $LspltSourceDir -Destination $LspltStageRoot -Recurse -Force
+& git -C $PSScriptRoot apply --check --directory=build/generated/lsplt $LspltPatch
+if ($LASTEXITCODE -ne 0) {
+    Write-LogError "LSPlt compatibility patch no longer applies to the pinned submodule"
+    exit 1
+}
+& git -C $PSScriptRoot apply --directory=build/generated/lsplt $LspltPatch
+if ($LASTEXITCODE -ne 0) {
+    Write-LogError "Failed to stage the LSPlt compatibility patch"
+    exit 1
+}
+
 Write-LogInfo "Building ArcHelperModule in $([char]27)[36m$BuildMode$([char]27)[0m mode"
 
 if ([string]::IsNullOrWhiteSpace($NdkHome)) {
@@ -265,8 +292,12 @@ if ($LASTEXITCODE -ne 0) {
 if ($BuildMode -eq "RELEASE") {
     Write-LogInfo "Stripping libraries for release"
     $Stripper = Join-Path $NdkHome "toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-strip.exe"
-    if (Test-Path $Stripper) {
-        & $Stripper -s build/libs/arm64-v8a/libarc_helper.so
+    if (-not (Test-Path $Stripper)) {
+        throw "llvm-strip not found: $Stripper"
+    }
+    & $Stripper -s build/libs/arm64-v8a/libarc_helper.so
+    if ($LASTEXITCODE -ne 0) {
+        throw "llvm-strip failed with exit code $LASTEXITCODE"
     }
 }
 
@@ -275,12 +306,30 @@ if (Test-Path $TmpDir) { Remove-Item -Recurse -Force $TmpDir }
 New-Item -ItemType Directory -Path "$TmpDir/zygisk" | Out-Null
 
 Copy-Item "build/libs/arm64-v8a/libarc_helper.so" -Destination "$TmpDir/zygisk/arm64-v8a.so"
+Copy-Item "build/libs/arm64-v8a/libshadowhook_nothing.so" -Destination "$TmpDir/zygisk/libshadowhook_nothing.so"
 Copy-Item "module/module.prop" -Destination "$TmpDir/"
 Copy-Item "module/scope.txt" -Destination "$TmpDir/"
 
 $ZipPath = "build/ArcHelperModule.zip"
 if (Test-Path $ZipPath) { Remove-Item $ZipPath }
 Compress-Archive -Path "$TmpDir\*" -DestinationPath $ZipPath
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$Archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $ZipPath).Path)
+try {
+    $ActualEntries = @($Archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') } | Sort-Object)
+    $ExpectedEntries = @(
+        "module.prop",
+        "scope.txt",
+        "zygisk/arm64-v8a.so",
+        "zygisk/libshadowhook_nothing.so"
+    ) | Sort-Object
+    if (($ActualEntries -join "`n") -ne ($ExpectedEntries -join "`n")) {
+        throw "Unexpected module contents: $($ActualEntries -join ', ')"
+    }
+} finally {
+    $Archive.Dispose()
+}
 
 Remove-Item -Recurse -Force $TmpDir
 Write-LogInfo "OK!"
