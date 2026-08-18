@@ -6,9 +6,11 @@
 
 #include "config/GameProfile.hpp"
 #include "features/Feature.hpp"
+#include "manager/HookManager.hpp"
 #include "GameTypes.hpp"
+#include "utils/memory/PatchTransaction.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Autoplay feature.
 //
@@ -24,6 +26,7 @@ namespace arc_autoplay {
 class Autoplay : public Feature {
 public:
     static Autoplay &Instance();
+    void Install(const cfg::GameProfile &profile);
 
 private:
     enum class TouchRole : uint8_t {
@@ -44,20 +47,20 @@ private:
         void Clear() { std::memset(bytes, 0, sizeof(bytes)); }
 
         void SetSysId(int32_t v) {
-            mem::Write<int32_t>(addr() + cfg::autoplay::kTouch_sys_id_i32_off, v);
+            std::memcpy(bytes + cfg::autoplay::kTouch_sys_id_i32_off, &v, sizeof(v));
         }
 
         void SetNdcXY(float x, float y) {
-            mem::Write<float>(addr() + cfg::autoplay::kTouch_ndc_x_f32_off, x);
-            mem::Write<float>(addr() + cfg::autoplay::kTouch_ndc_y_f32_off, y);
+            std::memcpy(bytes + cfg::autoplay::kTouch_ndc_x_f32_off, &x, sizeof(x));
+            std::memcpy(bytes + cfg::autoplay::kTouch_ndc_y_f32_off, &y, sizeof(y));
         }
 
         void SetTouchUid(int32_t v) {
-            mem::Write<int32_t>(addr() + cfg::autoplay::kTouch_uid_i32_off, v);
+            std::memcpy(bytes + cfg::autoplay::kTouch_uid_i32_off, &v, sizeof(v));
         }
 
         void SetTimestamp(int32_t v) {
-            mem::Write<int32_t>(addr() + cfg::autoplay::kTouch_timestamp_i32_off, v);
+            std::memcpy(bytes + cfg::autoplay::kTouch_timestamp_i32_off, &v, sizeof(v));
         }
     };
 
@@ -91,9 +94,7 @@ private:
     using NoteEffectOnJudgementFn = int64_t (*)(uintptr_t self, uintptr_t note, unsigned int kind, int early_late);
     using NoteEffectOnMissFn = int64_t (*)(uintptr_t self, uintptr_t note);
 
-    explicit Autoplay(bool enabled);
-
-    void EnsureInstalled();
+    Autoplay();
     void TryInstallHooks(const cfg::GameProfile &profile);
 
     // Hook callbacks.
@@ -169,6 +170,7 @@ private:
 
     bool patched_logicnote_miss_offsets_ = false;
     bool patched_logiccolor_accepts_touch_ = false;
+    mem::PatchTransaction patch_transaction_;
     int last_now_ms_ = 0;
 
     NoteEffectOnJudgementFn note_effect_on_judgement_ = nullptr;
@@ -178,6 +180,13 @@ private:
     std::array<SynthTouch, cfg::autoplay::kMaxSynthTouches> touches_{};
     bool touches_inited_ = false;
     bool hook_setup_done_ = false;
+    HookManager *hook_manager_ = nullptr;
+    uintptr_t lib_base_ = 0;
+    const cfg::GameProfile *profile_ = nullptr;
+
+    AH_CFG(enabled, true);
+    AH_CFG(long_start_lead_ms, 0, 0, 60000);
+    AH_CFG(long_end_lag_ms, 0, 0, 60000);
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

@@ -2,10 +2,11 @@
 
 #include <array>
 #include <cstring>
+#include <limits>
 
 #include "utils/memory/ProcMaps.hpp"
 
-namespace arc_autoplay::mem {
+namespace arc_helper::mem {
 namespace {
 
 uintptr_t FindUniqueBytesInRanges(const MemRange *ranges,
@@ -28,16 +29,18 @@ uintptr_t FindUniqueBytesInRanges(const MemRange *ranges,
         if ((end - start) < sig_len) continue;
 
         const uintptr_t last = end - sig_len;
-        for (uintptr_t p = start; p <= last; p += align) {
-            if (memcmp(reinterpret_cast<const void *>(p), sig, sig_len) != 0) continue;
-
-            hits += 1;
-            if (hits == 1) {
-                found = p;
-            } else {
-                if (out_hits) *out_hits = hits;
-                return 0;
+        for (uintptr_t p = start;;) {
+            if (memcmp(reinterpret_cast<const void *>(p), sig, sig_len) == 0) {
+                hits += 1;
+                if (hits == 1) {
+                    found = p;
+                } else {
+                    if (out_hits) *out_hits = hits;
+                    return 0;
+                }
             }
+            if (last - p < align) break;
+            p += align;
         }
     }
 
@@ -53,6 +56,7 @@ uintptr_t AddressResolver::ResolveBySignature(uintptr_t hint_offset,
                                               std::string_view soname) const {
     if (!lib_base_ || !sig || sig_len == 0) return 0;
 
+    if (hint_offset > std::numeric_limits<uintptr_t>::max() - lib_base_) return 0;
     const uintptr_t hint = lib_base_ + hint_offset;
     if (ProcMaps::IsReadable(hint, sig_len) &&
         memcmp(reinterpret_cast<void *>(hint), sig, sig_len) == 0) {
@@ -66,4 +70,4 @@ uintptr_t AddressResolver::ResolveBySignature(uintptr_t hint_offset,
     return FindUniqueBytesInRanges(exec_ranges.data(), exec_count, sig, sig_len, 4, nullptr);
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

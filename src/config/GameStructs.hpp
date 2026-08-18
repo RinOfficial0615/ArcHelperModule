@@ -5,7 +5,7 @@
 
 #include "config/GameProfile.hpp"
 
-namespace arc_autoplay::cfg::layouts {
+namespace arc_helper::cfg::layouts {
 
 // ============================================================================
 //  Mirror structs of in-game C++ objects (on-heap, not constructed by us).
@@ -15,9 +15,9 @@ namespace arc_autoplay::cfg::layouts {
 //  uint8_t pad_XX[...] arrays so that sizeof() + offsetof() stay correct.
 //
 //  Version handling:
-//    Every struct is templated on GameVersionId.  Currently both 6.12.11c and
-//    6.13.2f share the same layout (verified by cross-version decomp diff in
-//    Arc-RE/136-arcautoplay-version-upgrade-6.13.2f.md).  When a future
+//    Every struct is templated on GameVersionId.  The fields used here are
+//    shared through 6.16.2c (verified by cross-version function/BL comparison).
+//    When a future
 //    version changes a layout, override only the affected specialization.
 // ============================================================================
 
@@ -221,6 +221,24 @@ static_assert(offsetof(HttpResponse<V::k61211c>, succeed)      == 24);
 static_assert(offsetof(HttpResponse<V::k61211c>, bodyVec)      == 32);
 static_assert(offsetof(HttpResponse<V::k61211c>, statusCode)   == 80);
 
+// 6.16.2c capability gate: every field consumed by autoplay/network must keep
+// the verified shared layout before that profile can be armed.
+static_assert(offsetof(Timer<V::k6162c>, msA) == 32);
+static_assert(offsetof(Timer<V::k6162c>, flag) == 45);
+static_assert(offsetof(Gameplay<V::k6162c>, timer) == 48);
+static_assert(offsetof(Gameplay<V::k6162c>, note_begin) == 160);
+static_assert(offsetof(Gameplay<V::k6162c>, note_end) == 168);
+static_assert(offsetof(Note<V::k6162c>, timeStart) == 24);
+static_assert(offsetof(Note<V::k6162c>, playSceneCtx) == 64);
+static_assert(offsetof(Note<V::k6162c>, runtimeX) == 204);
+static_assert(offsetof(Note<V::k6162c>, runtimeY) == 208);
+static_assert(offsetof(ArcNote<V::k6162c>, isVoid) == 156);
+static_assert(offsetof(HoldNote<V::k6162c>, headActivated) == 160);
+static_assert(offsetof(TouchLike<V::k6162c>, ndcX) == 28);
+static_assert(offsetof(HttpRequest<V::k6162c>, type) == 12);
+static_assert(offsetof(HttpResponse<V::k6162c>, request) == 16);
+static_assert(offsetof(HttpResponse<V::k6162c>, statusCode) == 80);
+
 } // namespace verify
 
-} // namespace arc_autoplay::cfg::layouts
+} // namespace arc_helper::cfg::layouts

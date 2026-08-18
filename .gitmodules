@@ -1,3 +1,15 @@
-[submodule "libcxx"]
-	path = libcxx
+[submodule "third_party/libcxx"]
+	path = third_party/libcxx
 	url = https://github.com/topjohnwu/libcxx.git
+[submodule "third_party/json"]
+	path = third_party/json
+	url = https://github.com/nlohmann/json.git
+[submodule "third_party/lsplt"]
+	path = third_party/lsplt
+	url = https://github.com/LSPosed/LSPlt.git
+[submodule "third_party/magic_enum"]
+	path = third_party/magic_enum
+	url = https://github.com/Neargye/magic_enum.git
+[submodule "third_party/shadowhook"]
+	path = third_party/shadowhook
+	url = https://github.com/bytedance/android-inline-hook.git

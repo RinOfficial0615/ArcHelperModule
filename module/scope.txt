@@ -1,0 +1,4 @@
+# One exact application package per line. Blank lines and # comments are ignored.
+moe.inf.arc
+moe.low.arc
+moe.low.mes

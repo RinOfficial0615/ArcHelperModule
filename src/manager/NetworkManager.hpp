@@ -2,14 +2,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <atomic>
+#include <memory>
+#include <mutex>
 #include <string>
-#include <vector>
 
 #include "config/NetworkBlockConfig.h"
 #include "manager/HookManager.hpp"
 #include "manager/network/NetworkHandler.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 // Intercepts network requests and dispatches them to registered handlers.
 //
@@ -31,10 +33,13 @@ public:
 
     // Register one handler. Higher priority runs earlier.
     bool RegisterHandler(const char *name, int priority, HandlerFn fn);
+    bool HooksInstalled() const {
+        return hooks_installed_.load(std::memory_order_acquire);
+    }
 
     // Utilities available to handlers.
     static const char *HttpMethodStr(uint32_t request_type);
-    static void CopyAndSanitizeUrl(const char *url, char *out, size_t out_size);
+    static bool CopyAndSanitizeUrl(const char *url, char *out, size_t out_size);
     static std::string EscapeBytesForLog(const uint8_t *data, size_t len);
     static BufferView ReadRequestBodyView(const HandlerArgs &args, size_t max_bytes);
     static BufferView ReadResponseBodyView(const HandlerArgs &args, size_t max_bytes);
@@ -43,13 +48,6 @@ private:
     using ActiveRequestCtx = network::ActiveRequestCtx;
     using CurlEasySetoptFn = uint32_t (*)(uintptr_t curl_handle, uint32_t option, uintptr_t param);
     using HttpClientProcessRequestFn = int64_t (*)(uintptr_t http_client, uintptr_t http_response, char *curl_error_buf);
-
-    struct HandlerEntry {
-        const char *name = nullptr;
-        int priority = 0;
-        uint32_t register_order = 0;
-        HandlerFn fn = nullptr;
-    };
 
     struct DispatchResult {
         bool modified = false;
@@ -66,6 +64,8 @@ private:
 
     static void WriteCurlError(char *curl_error_buf, const char *msg);
 
+    static void PopulateBodyViews(HandlerArgs &args);
+
     HookManager &hook_manager_ = HookManager::Instance();
     uintptr_t lib_base_ = 0;
 
@@ -73,10 +73,13 @@ private:
 
     uintptr_t addr_httpclient_process_request_ = 0;
 
-    std::vector<HandlerEntry> handlers_{};
+    std::shared_ptr<const network::HandlerSnapshot> handler_snapshot_{
+        network::HandlerSnapshot::Empty()};
+    std::mutex handler_registry_mutex_{};
+    std::mutex hook_install_mutex_{};
     uint32_t next_register_order_ = 0;
-    uint32_t next_sequence_ = 0;
-    bool hooks_installed_ = false;
+    std::atomic_uint32_t next_sequence_{0};
+    std::atomic_bool hooks_installed_{false};
 };
 
-} // namespace arc_autoplay
+} // namespace arc_helper

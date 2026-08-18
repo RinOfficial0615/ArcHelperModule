@@ -2,16 +2,19 @@
 
 #include <cstdint>
 
-namespace arc_autoplay::mem {
+#include "utils/memory/RuntimeMemory.hpp"
+
+namespace arc_helper::mem {
 
 template <typename T>
 inline T Read(uintptr_t addr) {
-    return *reinterpret_cast<T *>(addr);
+    const auto result = RuntimeMemory::Process().Read<T>(addr);
+    return result ? *result : T{};
 }
 
 template <typename T>
 inline void Write(uintptr_t addr, T value) {
-    *reinterpret_cast<T *>(addr) = value;
+    (void)RuntimeMemory::Process().Write<T>(addr, value);
 }
 
-} // namespace arc_autoplay::mem
+} // namespace arc_helper::mem

@@ -1,0 +1,198 @@
+#include "manager/ConfigManager.hpp"
+
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include "utils/Log.h"
+
+namespace arc_helper {
+namespace {
+
+constexpr size_t kMaxConfigBytes = 64 * 1024;
+
+bool AtomicReplace(const std::filesystem::path &source,
+                   const std::filesystem::path &destination) {
+#ifdef _WIN32
+    return MoveFileExA(source.string().c_str(), destination.string().c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+#else
+    return std::rename(source.c_str(), destination.c_str()) == 0;
+#endif
+}
+
+} // namespace
+
+ConfigManager &ConfigManager::Instance() {
+    static ConfigManager manager;
+    return manager;
+}
+
+void ConfigManager::SetRootDirLocked(const std::string &root_dir) {
+    const std::filesystem::path root_path(root_dir);
+    root_dir_ = root_path.string();
+    charts_dir_ = root_dir_.empty() ? std::string{} : (root_path / "charts").string();
+    cache_dir_ = root_dir_.empty() ? std::string{} : (root_path / "cache").string();
+    logs_dir_ = root_dir_.empty() ? std::string{} : (root_path / "logs").string();
+    data_ = nlohmann::json::object();
+    loaded_ = false;
+}
+
+void ConfigManager::SetPackageName(const char *package_name) {
+    if (!package_name || package_name[0] == '\0') return;
+    std::scoped_lock lock(mutex_);
+    if (package_name_ == package_name && !root_dir_.empty()) return;
+    package_name_ = package_name;
+    SetRootDirLocked("/sdcard/Android/data/" + package_name_ + "/files/ArcHelper");
+}
+
+void ConfigManager::SetRootDir(const std::string &root_dir) {
+    if (root_dir.empty()) return;
+    std::scoped_lock lock(mutex_);
+    if (root_dir_ == root_dir) return;
+    SetRootDirLocked(root_dir);
+}
+
+bool ConfigManager::RootAvailable() const {
+    std::scoped_lock lock(mutex_);
+    return loaded_ && !root_dir_.empty();
+}
+
+bool ConfigManager::Load() {
+    std::scoped_lock lock(mutex_);
+    if (loaded_) return !root_dir_.empty();
+    data_ = nlohmann::json::object();
+    if (root_dir_.empty()) {
+        ARC_LOGE("ArcHelper root unavailable; using in-memory defaults");
+        loaded_ = true;
+        return false;
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(root_dir_, ec);
+    if (ec) {
+        ARC_LOGE("Failed to create root %s: %s",
+                 root_dir_.c_str(), ec.message().c_str());
+        return false;
+    }
+    ec.clear();
+    std::filesystem::create_directories(charts_dir_, ec);
+    if (ec) {
+        ARC_LOGE("Failed to create charts directory %s: %s",
+                 charts_dir_.c_str(), ec.message().c_str());
+        return false;
+    }
+    ec.clear();
+    std::filesystem::create_directories(cache_dir_, ec);
+    if (ec) {
+        ARC_LOGE("Failed to create cache directory %s: %s",
+                 cache_dir_.c_str(), ec.message().c_str());
+        return false;
+    }
+
+    const std::filesystem::path path = std::filesystem::path(root_dir_) / "config.json";
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        loaded_ = true;
+        return true;
+    }
+
+    std::string text(kMaxConfigBytes + 1, '\0');
+    input.read(text.data(), static_cast<std::streamsize>(text.size()));
+    const std::streamsize bytes_read = input.gcount();
+    if (bytes_read < 0 || static_cast<size_t>(bytes_read) > kMaxConfigBytes) {
+        ARC_LOGE("oversized %s; regenerating defaults", path.string().c_str());
+        loaded_ = true;
+        return true;
+    }
+    if (input.bad()) {
+        ARC_LOGE("failed to read %s; regenerating defaults", path.string().c_str());
+        loaded_ = true;
+        return true;
+    }
+    text.resize(static_cast<size_t>(bytes_read));
+
+    auto parsed = nlohmann::json::parse(text, nullptr, false);
+    if (parsed.is_discarded() || !parsed.is_object()) {
+        ARC_LOGE("malformed %s; regenerating defaults", path.string().c_str());
+        loaded_ = true;
+        return true;
+    }
+    data_ = std::move(parsed);
+    loaded_ = true;
+    return true;
+}
+
+bool ConfigManager::Save() {
+    std::scoped_lock lock(mutex_);
+    if (root_dir_.empty()) return false;
+
+    std::error_code ec;
+    std::filesystem::create_directories(root_dir_, ec);
+    if (ec) {
+        ARC_LOGE("Failed to create root %s: %s",
+                 root_dir_.c_str(), ec.message().c_str());
+        return false;
+    }
+
+    const std::filesystem::path path = std::filesystem::path(root_dir_) / "config.json";
+    const std::filesystem::path temporary = path.string() + ".tmp";
+    const auto cleanup = [&] {
+        std::error_code cleanup_ec;
+        std::filesystem::remove(temporary, cleanup_ec);
+    };
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output) {
+            ARC_LOGE("Failed to open %s", temporary.string().c_str());
+            cleanup();
+            return false;
+        }
+        output << data_.dump(2) << '\n';
+        output.flush();
+        if (!output) {
+            ARC_LOGE("Failed to write %s", temporary.string().c_str());
+            cleanup();
+            return false;
+        }
+    }
+
+    if (AtomicReplace(temporary, path)) return true;
+    cleanup();
+    ARC_LOGE("Failed to replace %s", path.string().c_str());
+    return false;
+}
+
+nlohmann::json &ConfigManager::GetObjectLocked(std::string_view section,
+                                                std::string_view subsection) {
+    const std::string section_key(section);
+    nlohmann::json &section_object = data_[section_key];
+    if (!section_object.is_object()) section_object = nlohmann::json::object();
+    if (subsection.empty()) return section_object;
+
+    const std::string subsection_key(subsection);
+    nlohmann::json &subsection_object = section_object[subsection_key];
+    if (!subsection_object.is_object()) subsection_object = nlohmann::json::object();
+    return subsection_object;
+}
+
+#ifdef ARC_HELPER_HOST_TEST
+void ConfigManager::SetRootDirForTesting(const std::string &root_dir) {
+    std::scoped_lock lock(mutex_);
+    package_name_ = "host.test";
+    SetRootDirLocked(root_dir);
+}
+
+void ConfigManager::ResetForTesting(const std::string &root_dir) {
+    std::scoped_lock lock(mutex_);
+    package_name_ = root_dir.empty() ? std::string{} : "host.test";
+    SetRootDirLocked(root_dir);
+}
+#endif
+
+} // namespace arc_helper

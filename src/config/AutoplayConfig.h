@@ -6,11 +6,11 @@
 
 #include "config/GameStructs.hpp"
 
-namespace arc_autoplay::cfg::autoplay {
+namespace arc_helper::cfg::autoplay {
 
 // ---------------------------------------------------------------------------
 //  Offsets computed from `layouts::*` mirror structs (see `GameStructs.hpp`).
-//  All layouts are verified identical for 6.12.11c / 6.13.2f / 6.14.0c.
+//  All consumed fields are verified identical through 6.16.2c.
 // ---------------------------------------------------------------------------
 constexpr GameVersionId kLayoutVer = GameVersionId::k61211c;
 
@@ -54,8 +54,6 @@ inline constexpr size_t kArc_playScene_vcall_off               = 0x530;
 inline constexpr int kSynthTouchBaseId = 100;
 inline constexpr int kMaxSynthTouches = 16;
 inline constexpr int kSynthTouchHoldId = kSynthTouchBaseId + kMaxSynthTouches;
-inline constexpr int kLongStartLeadMs = 0;
-inline constexpr int kLongEndLagMs = 0;
 
 // Track coordinate constants.
 inline constexpr float kTrackHalfWidth = 425.0f;
@@ -76,11 +74,25 @@ inline constexpr std::array<uint8_t, 16> kSig_ScoreState_applyJudgement = {
     0xFD, 0x7B, 0x06, 0xA9,
 };
 
+inline constexpr std::array<uint8_t, 16> kSig_6162c_ScoreState_applyJudgement = {
+    0xFF, 0x83, 0x02, 0xD1,
+    0xFD, 0x7B, 0x04, 0xA9,
+    0xFB, 0x2B, 0x00, 0xF9,
+    0xFA, 0x67, 0x06, 0xA9,
+};
+
 inline constexpr std::array<uint8_t, 16> kSig_ScoreState_applyMiss = {
     0xFF, 0xC3, 0x01, 0xD1,
     0xE8, 0x23, 0x00, 0xFD,
     0xFD, 0xFB, 0x04, 0xA9,
     0xF5, 0x2F, 0x00, 0xF9,
+};
+
+inline constexpr std::array<uint8_t, 16> kSig_6162c_ScoreState_applyMiss = {
+    0xFF, 0x03, 0x02, 0xD1,
+    0xFD, 0x7B, 0x04, 0xA9,
+    0xF8, 0x5F, 0x05, 0xA9,
+    0xF6, 0x57, 0x06, 0xA9,
 };
 
 inline constexpr std::array<uint8_t, 16> kSig_Gameplay_tryTapJudgementForTouch = {
@@ -118,4 +130,16 @@ inline constexpr std::array<uint8_t, 16> kSig_LogicColor_acceptsTouch = {
     0xFD, 0x43, 0x00, 0x91,
 };
 
-} // namespace arc_autoplay::cfg::autoplay
+inline constexpr const std::array<uint8_t, 16> &ScoreStateApplyJudgementSignature(GameVersionId version) {
+    return version == GameVersionId::k6162c
+               ? kSig_6162c_ScoreState_applyJudgement
+               : kSig_ScoreState_applyJudgement;
+}
+
+inline constexpr const std::array<uint8_t, 16> &ScoreStateApplyMissSignature(GameVersionId version) {
+    return version == GameVersionId::k6162c
+               ? kSig_6162c_ScoreState_applyMiss
+               : kSig_ScoreState_applyMiss;
+}
+
+} // namespace arc_helper::cfg::autoplay

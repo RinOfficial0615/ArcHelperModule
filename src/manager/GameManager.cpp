@@ -3,7 +3,7 @@
 #include "utils/MemoryUtils.hpp"
 #include "config/ModuleConfig.h"
 
-namespace arc_autoplay {
+namespace arc_helper {
 
 GameManager &GameManager::Instance() {
     static GameManager manager;
@@ -25,4 +25,4 @@ uintptr_t GameManager::GetOrFindGameLibBase() {
     return found;
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

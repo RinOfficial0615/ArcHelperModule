@@ -3,10 +3,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
+#include <string_view>
 
 #include "config/GameStructs.hpp"
 
-namespace arc_autoplay::cfg::network_block {
+namespace arc_helper::cfg::network_block {
 
 // ---------------------------------------------------------------------------
 //  Offsets computed from `layouts::*` mirror structs (see `GameStructs.hpp`).
@@ -50,28 +52,13 @@ inline constexpr size_t kHttpResponse_status_code_i64_off  = offsetof(layouts::H
 inline constexpr uint32_t kCurlOpt_URL = 10002;        // CURLOPT_URL
 inline constexpr uint32_t kCurlOpt_WriteData = 10001;  // CURLOPT_WRITEDATA
 inline constexpr uint32_t kCurlOpt_ErrorBuffer = 10010; // CURLOPT_ERRORBUFFER
+inline constexpr size_t kCurlErrorMaxLen = 255;
 
-// Audit logging
-inline constexpr bool kAuditLogAllRequests = true;
-inline constexpr uint32_t kAuditLogLimit = 200;
-inline constexpr bool kAuditStripQuery = true;
-inline constexpr size_t kAuditUrlMaxLen = 240;
-
-// Request body logging (WARNING: may contain sensitive data)
-inline constexpr bool kAuditLogBody = true;
-inline constexpr bool kAuditLogBodyOnlyNonGet = true;
-inline constexpr size_t kAuditBodyMaxBytes = 0; // 0 = unlimited
-
-// Response logging (WARNING: may contain sensitive data)
-inline constexpr bool kAuditLogResponse = true;
-inline constexpr size_t kAuditResponseMaxBytes = 2048; // 0 = unlimited
-
-// Blocking policy
-// - Only the block rules below are applied (plus optional global overrides).
-// - Optionally hard-block all non-GET (POST/PUT/DELETE) for safe testing.
-inline constexpr bool kBlockAllNonGet = false;
-inline constexpr bool kBlockAllRequests = false;
-inline constexpr uint32_t kBlockedLogLimit = 50;
+// URL storage remains compile-time bounded even though logging policy is dynamic.
+inline constexpr size_t kUrlMaxLen = 240;
+// Network payloads are copied as borrowed views before handlers run. This is a
+// producer-side hard cap; the generic logger may apply a smaller sink budget.
+inline constexpr size_t kNetworkBodyCaptureMax = 1024;
 
 enum class RuleMatchType : uint8_t {
     PathPrefix,
@@ -92,7 +79,9 @@ struct NetworkBlockRule {
     const char *pattern;
 };
 
-// Block rules (match by URL postfix/path; API base prefix can change).
+// Ordinary rules. Same nine entries as master; PathPrefix is a substring
+// match with a '/' or end boundary so versioned hosts such as
+// `/16/world/map/me` still hit (master used strstr on the full URL).
 inline constexpr std::array<NetworkBlockRule, 9> kBlockRules = {{
     {"world/map/me", kMethodGet | kMethodPost, RuleMatchType::PathPrefix, "/world/map/me"},
     {"score/token/world", kMethodGet, RuleMatchType::PathSuffix, "/score/token/world"},
@@ -105,4 +94,121 @@ inline constexpr std::array<NetworkBlockRule, 9> kBlockRules = {{
     {"multiplayer/matchmaking/status (POST)", kMethodPost, RuleMatchType::PathPrefix, "/multiplayer/me/matchmaking/status"},
 }};
 
-} // namespace arc_autoplay::cfg::network_block
+// Fixed custom-chart isolation. Applied only while a mapped custom .aff
+// session is active, independent of the ordinary NetworkBlock toggle.
+// Mutating methods are blocked wholesale; these GET rules cover tokens,
+// downloads, world/course/purchase probes, and profile refresh.
+inline constexpr std::array<NetworkBlockRule, 14> kIsolationRules = {{
+    {"isolation:world/map/me", kMethodGet, RuleMatchType::PathPrefix, "/world/map/me"},
+    {"isolation:score/token/world", kMethodGet, RuleMatchType::PathSuffix, "/score/token/world"},
+    {"isolation:score/token/course", kMethodGet, RuleMatchType::PathSuffix, "/score/token/course"},
+    {"isolation:score/token", kMethodGet, RuleMatchType::PathSuffix, "/score/token"},
+    {"isolation:course/me", kMethodGet, RuleMatchType::PathSuffix, "/course/me"},
+    {"isolation:serve/download/me/song", kMethodGet, RuleMatchType::PathPrefix, "/serve/download/me/song"},
+    {"isolation:purchase/me", kMethodGet, RuleMatchType::PathPrefix, "/purchase/me"},
+    {"isolation:purchase/bundle", kMethodGet, RuleMatchType::PathPrefix, "/purchase/bundle"},
+    {"isolation:finale/progress", kMethodGet, RuleMatchType::PathSuffix, "/finale/progress"},
+    {"isolation:user/me", kMethodGet, RuleMatchType::PathPrefix, "/user/me"},
+    {"isolation:present/me", kMethodGet, RuleMatchType::PathPrefix, "/present/me"},
+    {"isolation:insight/me", kMethodGet, RuleMatchType::PathPrefix, "/insight/me"},
+    {"isolation:mission/me", kMethodGet, RuleMatchType::PathPrefix, "/mission/me"},
+    {"isolation:friend/me", kMethodGet, RuleMatchType::PathPrefix, "/friend/me"},
+}};
+
+struct RequestMatch {
+    uint32_t request_type = 0;
+    bool url_truncated = false;
+    const char *url_path = "";
+};
+
+struct BlockPolicy {
+    bool ordinary_enabled = false;
+    bool isolation_active = false;
+    bool block_all_requests = false;
+    bool block_all_non_get = false;
+};
+
+struct BlockDecision {
+    bool block = false;
+    const char *reason = "none";
+};
+
+inline bool EndsWithPath(std::string_view url, std::string_view path) {
+    if (path.empty()) return false;
+    if (url.ends_with(path)) return true;
+    return url.size() > path.size() && url.ends_with('/') &&
+           url.substr(0, url.size() - 1).ends_with(path);
+}
+
+inline bool HasPathPrefix(std::string_view url, std::string_view prefix) {
+    if (prefix.empty()) return false;
+    const size_t pos = url.find(prefix);
+    if (pos == std::string_view::npos) return false;
+    const size_t after = pos + prefix.size();
+    return after == url.size() || url[after] == '/';
+}
+
+inline bool MatchRule(const NetworkBlockRule &rule, std::string_view url) {
+    if (!rule.pattern) return false;
+    switch (rule.match_type) {
+    case RuleMatchType::PathPrefix:
+        return HasPathPrefix(url, rule.pattern);
+    case RuleMatchType::PathSuffix:
+        return EndsWithPath(url, rule.pattern);
+    default:
+        return false;
+    }
+}
+
+inline uint8_t MethodBit(uint32_t request_type) {
+    if (request_type > 3) return 0;
+    return static_cast<uint8_t>(1u << request_type);
+}
+
+inline bool MatchAnyRule(std::span<const NetworkBlockRule> rules,
+                         uint8_t method,
+                         std::string_view url,
+                         const char **out_reason) {
+    for (const auto &rule : rules) {
+        if ((rule.method_mask & method) == 0) continue;
+        if (!MatchRule(rule, url)) continue;
+        if (out_reason) *out_reason = rule.reason ? rule.reason : "rule";
+        return true;
+    }
+    return false;
+}
+
+inline BlockDecision Evaluate(const RequestMatch &request, const BlockPolicy &policy) {
+    BlockDecision decision{};
+    if (!policy.ordinary_enabled && !policy.isolation_active) return decision;
+
+    if (policy.ordinary_enabled && policy.block_all_requests) {
+        return {.block = true, .reason = "all"};
+    }
+    if (policy.isolation_active && request.request_type != 0) {
+        return {.block = true, .reason = "custom-chart-isolation"};
+    }
+    if (policy.ordinary_enabled && policy.block_all_non_get && request.request_type != 0) {
+        return {.block = true, .reason = "non-get"};
+    }
+    if (request.url_truncated || !request.url_path || request.url_path[0] == '\0') {
+        return decision;
+    }
+
+    const uint8_t method = MethodBit(request.request_type);
+    if (method == 0) return decision;
+
+    const std::string_view url(request.url_path);
+    const char *reason = "none";
+    if (policy.isolation_active &&
+        MatchAnyRule(kIsolationRules, method, url, &reason)) {
+        return {.block = true, .reason = reason};
+    }
+    if (policy.ordinary_enabled &&
+        MatchAnyRule(kBlockRules, method, url, &reason)) {
+        return {.block = true, .reason = reason};
+    }
+    return decision;
+}
+
+} // namespace arc_helper::cfg::network_block

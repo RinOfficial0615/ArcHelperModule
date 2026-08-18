@@ -1,0 +1,193 @@
+diff --git a/lsplt/src/main/jni/elf_util.cc b/lsplt/src/main/jni/elf_util.cc
+index 2e933d0..a612ff1 100644
+--- a/lsplt/src/main/jni/elf_util.cc
++++ b/lsplt/src/main/jni/elf_util.cc
+@@ -303,3 +303,19 @@ std::vector<uintptr_t> Elf::FindPltAddr(std::string_view name) const {
+ 
+     return res;
+ }
++
++std::optional<uintptr_t> Elf::FileOffsetForAddress(uintptr_t address) const {
++    if (address < bias_addr_) return std::nullopt;
++    const uintptr_t virtual_address = address - bias_addr_;
++    auto ph_off = reinterpret_cast<uintptr_t>(program_header_);
++    for (int i = 0; i < header_->e_phnum; ++i, ph_off += header_->e_phentsize) {
++        const auto *program_header = reinterpret_cast<const ElfW(Phdr) *>(ph_off);
++        if (program_header->p_type != PT_LOAD) continue;
++        if (virtual_address < program_header->p_vaddr ||
++            virtual_address >= program_header->p_vaddr + program_header->p_memsz) {
++            continue;
++        }
++        return program_header->p_offset + virtual_address - program_header->p_vaddr;
++    }
++    return std::nullopt;
++}
+diff --git a/lsplt/src/main/jni/elf_util.hpp b/lsplt/src/main/jni/elf_util.hpp
+index 3baf53b..391e0f3 100644
+--- a/lsplt/src/main/jni/elf_util.hpp
++++ b/lsplt/src/main/jni/elf_util.hpp
+@@ -1,6 +1,7 @@
+ #pragma once
+ #include <link.h>
+ #include <stdint.h>
++#include <optional>
+ #include <string_view>
+ #include <vector>
+ 
+@@ -45,6 +46,7 @@ class Elf {
+     uint32_t LinearLookup(std::string_view name) const;
+ public:
+     std::vector<uintptr_t> FindPltAddr(std::string_view name) const;
++    std::optional<uintptr_t> FileOffsetForAddress(uintptr_t address) const;
+     Elf(uintptr_t base_addr);
+     bool Valid() const { return valid_; };
+ };
+diff --git a/lsplt/src/main/jni/lsplt.cc b/lsplt/src/main/jni/lsplt.cc
+index 954e920..076be3f 100644
+--- a/lsplt/src/main/jni/lsplt.cc
++++ b/lsplt/src/main/jni/lsplt.cc
+@@ -3,6 +3,7 @@
+ #include <sys/mman.h>
+ #include <sys/sysmacros.h>
+ 
++#include <algorithm>
+ #include <array>
+ #include <cinttypes>
+ #include <list>
+@@ -115,15 +116,41 @@ public:
+         }
+     }
+ 
+-    bool DoHook(uintptr_t addr, uintptr_t callback, uintptr_t *backup) {
++    bool DoDirectHook(uintptr_t addr, uintptr_t callback, uintptr_t *backup) {
++        const auto maps = lsplt::MapInfo::Scan();
++        const auto map = std::find_if(maps.begin(), maps.end(), [addr](const auto &entry) {
++            return entry.start <= addr && addr < entry.end;
++        });
++        if (map == maps.end()) return false;
++
++        const bool writable = (map->perms & PROT_WRITE) != 0;
++        if (!writable && mprotect(PageStart(addr), kPageSize, map->perms | PROT_WRITE) != 0)
++            return false;
++        auto *the_addr = reinterpret_cast<uintptr_t *>(addr);
++        const auto the_backup = *the_addr;
++        if (*the_addr != callback) {
++            *the_addr = callback;
++            if (backup) *backup = the_backup;
++            __builtin___clear_cache(PageStart(addr), PageEnd(addr));
++        }
++        if (!writable && mprotect(PageStart(addr), kPageSize, map->perms) != 0) return false;
++        return true;
++    }
++
++    bool DoHook(uintptr_t addr, uintptr_t callback, uintptr_t *backup, bool direct_patch) {
+         LOGV("Hooking %p", reinterpret_cast<void *>(addr));
+         auto iter = lower_bound(addr);
+-        if (iter == end()) return false;
+-        // iter.first < addr
++        if (iter == end() || iter->second.end <= addr) {
++            iter = std::find_if(begin(), end(), [addr](const auto &entry) {
++                return entry.second.start <= addr && addr < entry.second.end;
++            });
++        }
++        if (iter == end()) {
++            return direct_patch && DoDirectHook(addr, callback, backup);
++        }
+         auto &info = iter->second;
+-        if (info.end <= addr) return false;
+         const auto len = info.end - info.start;
+-        if (!info.backup && !info.self) {
++        if (!info.backup && !info.self && !direct_patch) {
+             // let os find a suitable address
+             auto *backup_addr = sys_mmap(nullptr, len, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+             LOGD("Backup %p to %p", reinterpret_cast<void *>(addr), backup_addr);
+@@ -134,17 +161,13 @@ public:
+                 new_addr == MAP_FAILED || new_addr != backup_addr) {
+                 new_addr = sys_mremap(reinterpret_cast<void *>(info.start), len, len,
+                            MREMAP_FIXED | MREMAP_MAYMOVE, backup_addr);
+-                if (new_addr == MAP_FAILED || new_addr != backup_addr) {
+-                    return false;
+-                }
++                if (new_addr == MAP_FAILED || new_addr != backup_addr) return false;
+                 LOGD("Backup with MREMAP_DONTUNMAP failed, tried without it");
+             }
+             if (auto *new_addr = sys_mmap(reinterpret_cast<void *>(info.start), len,
+                                           PROT_READ | PROT_WRITE | info.perms,
+                                           MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
+-                new_addr == MAP_FAILED) {
+-                return false;
+-            }
++                new_addr == MAP_FAILED) return false;
+             for (uintptr_t src = reinterpret_cast<uintptr_t>(backup_addr), dest = info.start,
+                            end = info.start + len;
+                  dest < end; src += kPageSize, dest += kPageSize) {
+@@ -152,12 +175,15 @@ public:
+             }
+             info.backup = reinterpret_cast<uintptr_t>(backup_addr);
+         }
+-        if (info.self) {
++        const bool restore_permissions = direct_patch && !(info.perms & PROT_WRITE);
++        if (info.self && !(info.perms & PROT_WRITE)) {
+             // self hooking, no need backup since we are always dirty
+-            if (!(info.perms & PROT_WRITE)) {
+-                info.perms |= PROT_WRITE;
+-                mprotect(reinterpret_cast<void *>(info.start), len, info.perms);
+-            }
++            info.perms |= PROT_WRITE;
++            if (mprotect(reinterpret_cast<void *>(info.start), len, info.perms) != 0) return false;
++        } else if (restore_permissions &&
++                   mprotect(reinterpret_cast<void *>(info.start), len,
++                            info.perms | PROT_WRITE) != 0) {
++            return false;
+         }
+         auto *the_addr = reinterpret_cast<uintptr_t *>(addr);
+         auto the_backup = *the_addr;
+@@ -171,7 +197,11 @@ public:
+         } else {
+             info.hooks.emplace(addr, the_backup);
+         }
+-        if (info.hooks.empty() && !info.self) {
++        if (restore_permissions &&
++            mprotect(reinterpret_cast<void *>(info.start), len, info.perms) != 0) {
++            return false;
++        }
++        if (info.hooks.empty() && info.backup && !info.self) {
+             LOGD("Restore %p from %p", reinterpret_cast<void *>(info.start),
+                  reinterpret_cast<void *>(info.backup));
+             // Note that we have to always use sys_mremap here,
+@@ -202,8 +232,33 @@ public:
+                 if (info.elf && info.elf->Valid()) {
+                     LOGD("Hooking %s", iter->symbol.data());
+                     for (auto addr : info.elf->FindPltAddr(reg.symbol)) {
+-                        res = DoHook(addr, reinterpret_cast<uintptr_t>(reg.callback),
+-                                     reinterpret_cast<uintptr_t *>(reg.backup)) &&
++                        uintptr_t runtime_addr = addr;
++                        bool direct_patch = false;
++                        const auto maps = lsplt::MapInfo::Scan();
++                        const auto current_map = std::find_if(maps.begin(), maps.end(), [addr](const auto &entry) {
++                            return entry.start <= addr && addr < entry.end;
++                        });
++                        if (current_map == maps.end() || current_map->dev != info.dev ||
++                            current_map->inode != info.inode || current_map->path.empty()) {
++                            // Another LSPlt instance may have moved this PLT
++                            // page to an anonymous mirror. Patch the live VA;
++                            // the file-backed offset is no longer executable.
++                            direct_patch = true;
++                        } else if (const auto file_offset = info.elf->FileOffsetForAddress(addr)) {
++                            const auto map = std::find_if(begin(), end(), [&](const auto &entry) {
++                                const auto &candidate = entry.second;
++                                const uintptr_t map_size = candidate.end - candidate.start;
++                                return candidate.dev == info.dev && candidate.inode == info.inode &&
++                                       candidate.offset <= *file_offset &&
++                                       *file_offset < candidate.offset + map_size;
++                            });
++                            if (map != end()) {
++                                runtime_addr = map->second.start + *file_offset - map->second.offset;
++                            }
++                        }
++                        res = DoHook(runtime_addr, reinterpret_cast<uintptr_t>(reg.callback),
++                                     reinterpret_cast<uintptr_t *>(reg.backup),
++                                     direct_patch || runtime_addr != addr) &&
+                               res;
+                     }
+                 }

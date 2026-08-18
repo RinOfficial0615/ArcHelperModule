@@ -5,17 +5,19 @@
 #include <cstdint>
 #include <cstring>
 
-namespace arc_autoplay::cfg {
+#include <magic_enum/magic_enum.hpp>
+
+namespace arc_helper::cfg {
 
 enum class GameVersionId : uint8_t {
     kUnknown = 0,
     k61211c,
     k6132f,
     k6140c,
+    k6162c,
 };
 
 struct VersionProbeOffsets {
-    uintptr_t set_app_version = 0;
     uintptr_t app_version_string = 0;
 };
 
@@ -43,6 +45,32 @@ struct NetworkOffsets {
 struct SslPinsOffsets {
     uintptr_t skip_cbz = 0;     // CBZ X20,skip → B skip
     uintptr_t tail_call = 0;    // BL sub_XXXX → NOP
+    uint32_t expected_skip_cbz = 0;
+    uint32_t expected_tail_call = 0;
+};
+
+struct CustomChartsOffsets {
+    uintptr_t songlist_parser = 0;
+    // Return address immediately after the validated AAssetManager_open BL
+    // that reads songs/songlist (6.16.2c: 0x142CFB0).  This is deliberately
+    // an exact caller match; the nearby integrity/preload caller is official.
+    uintptr_t songlist_asset_loader_caller = 0;
+    uintptr_t asset_bundle_loader = 0;
+    uintptr_t songlist_digest_size_guard = 0;
+    uintptr_t songlist_digest_compare_guard = 0;
+    uintptr_t songlist_difficulty_filter = 0;
+    uintptr_t difficulty_availability = 0;
+    uintptr_t song_unlock_mask_check = 0;
+    uintptr_t content_availability = 0;
+    uintptr_t chart_path = 0;
+    uintptr_t song_registry_global = 0;
+    uintptr_t find_song_by_id = 0;
+};
+
+struct FeatureCapabilities {
+    bool autoplay = false;
+    bool network = false;
+    bool custom_charts = false;
 };
 
 struct GameProfile {
@@ -52,14 +80,15 @@ struct GameProfile {
     AutoplayOffsets autoplay{};
     NetworkOffsets network{};
     SslPinsOffsets ssl_pins{};
+    CustomChartsOffsets custom_charts{};
+    FeatureCapabilities capabilities{};
 };
 
-inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
+inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
     {
         .id = GameVersionId::k61211c,
         .version_name = "6.12.11c",
         .version_probe = {
-            .set_app_version = 0xDDD160,
             .app_version_string = 0x1918CD0,
         },
         .autoplay = {
@@ -84,13 +113,15 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
         .ssl_pins = {
             .skip_cbz = 0xBBCB24,
             .tail_call = 0xBBF3F0,
+            .expected_skip_cbz = 0xB40000F4,
+            .expected_tail_call = 0x97F866C5,
         },
+        .capabilities = {.autoplay = true, .network = true},
     },
     {
         .id = GameVersionId::k6132f,
         .version_name = "6.13.2f",
         .version_probe = {
-            .set_app_version = 0xBD57DC,
             .app_version_string = 0x1872370,
         },
         .autoplay = {
@@ -113,12 +144,12 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
             .curl_easy_setopt = 0x0D8FD08,
         },
         .ssl_pins = {},
+        .capabilities = {.autoplay = true, .network = true},
     },
     {
         .id = GameVersionId::k6140c,
         .version_name = "6.14.0c",
         .version_probe = {
-            .set_app_version = 0x89F528,
             .app_version_string = 0x1984120,
         },
         .autoplay = {
@@ -143,9 +174,68 @@ inline constexpr std::array<GameProfile, 3> kSupportedGameProfiles = {{
         .ssl_pins = {
             .skip_cbz = 0x10D462C,
             .tail_call = 0x10D6EF8,
+            .expected_skip_cbz = 0xB40000F4,
+            .expected_tail_call = 0x97E6365C,
         },
+        .capabilities = {.autoplay = true, .network = true},
+    },
+    {
+        .id = GameVersionId::k6162c,
+        .version_name = "6.16.2c",
+        .version_probe = {
+            .app_version_string = 0x1A9C880,
+        },
+        .autoplay = {
+            .gameplay_process_logic_notes = 0xBEE260,
+            .gameplay_try_tap_judgement_for_touch = 0x184FBD4,
+            .score_state_apply_judgement = 0x745BC4,
+            .score_state_apply_miss = 0x1361DE4,
+            .show_judgement_effect_at_note = 0x103A07C,
+            .note_effect_on_miss = 0x14A948C,
+            .note_effect_on_judgement = 0xA193CC,
+            .logic_color_accepts_touch = 0xE59C90,
+            .patch_process_logic_notes_add64_a = 0xBEE748,
+            .patch_process_logic_notes_add64_b = 0xBEE800,
+            .patch_process_logic_notes_addc8 = 0xBEE850,
+            .typeinfo_logic_hold_note = 0x1979468,
+            .typeinfo_logic_arc_note = 0x1A10D78,
+        },
+        .network = {
+            .httpclient_process_request = 0x17E9698,
+            .curl_easy_setopt = 0x778FD0,
+        },
+        .ssl_pins = {},
+        .custom_charts = {
+            .songlist_parser = 0xCA2280,
+            .songlist_asset_loader_caller = 0x142CFB0,
+            .asset_bundle_loader = 0x100F3E8,
+            .songlist_digest_size_guard = 0x100F814,
+            .songlist_digest_compare_guard = 0x100F830,
+            .songlist_difficulty_filter = 0x12638FC,
+            .difficulty_availability = 0xE162C8,
+            .song_unlock_mask_check = 0xD988F4,
+            .content_availability = 0x121E9FC,
+            .chart_path = 0xA74680,
+            .song_registry_global = 0x1AAB6E0,
+            .find_song_by_id = 0xCADFA4,
+        },
+        .capabilities = {.autoplay = true, .network = true, .custom_charts = true},
     },
 }};
+
+consteval bool GameProfilesCoverKnownVersions() {
+    for (const GameVersionId version : magic_enum::enum_values<GameVersionId>()) {
+        size_t matches = 0;
+        for (const auto &profile : kSupportedGameProfiles) {
+            if (profile.id == version) ++matches;
+        }
+        if (matches != (version == GameVersionId::kUnknown ? 0u : 1u)) return false;
+    }
+    return true;
+}
+
+static_assert(GameProfilesCoverKnownVersions(),
+              "each known game version must have exactly one profile");
 
 inline bool GameVersionMatches(const char *actual, const char *expected) {
     return actual && expected && std::strcmp(actual, expected) == 0;
@@ -158,4 +248,4 @@ inline const GameProfile *FindGameProfileByVersionString(const char *version) {
     return it != kSupportedGameProfiles.end() ? &(*it) : nullptr;
 }
 
-} // namespace arc_autoplay::cfg
+} // namespace arc_helper::cfg

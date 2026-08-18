@@ -1,16 +1,16 @@
-# ArcAutoplayModule
+# ArcHelperModule
 
 Language: English | [简体中文](README_CN.md)
 
-Arcaea autoplay module for 6.12.11c / 6.13.2f / 6.14.0c (arm64).
+Arcaea helper module with autoplay, network controls, and local custom charts for 6.12.11c / 6.13.2f / 6.14.0c / 6.16.2c (arm64). Custom charts start at 6.16.2c.
 
 Provides both Zygisk and JNI entry points. You can embed the built .so into an APK and load it after `libcocos2dcpp.so`, or install it as a Zygisk module directly.
 
 ## Requirements
 
-- Android NDK r28+ (the build script picks the newest; fails if ≤ r28)
+- Android NDK r29+ (the build script picks the newest; fails if ≤ r28)
 - Device with Zygisk enabled
-- Arcaea 6.12.11c, 6.13.2f, or 6.14.0c
+- Arcaea 6.12.11c, 6.13.2f, 6.14.0c, or 6.16.2c
 
 ## Build
 
@@ -26,16 +26,18 @@ Set `ANDROID_NDK_HOME`, then build:
 ./build.ps1 --rel
 ```
 
-Artifact: `build/ArcAutoplayModule.zip`
+Artifact: `build/ArcHelperModule.zip`
 
 ## Features
 
-| Feature | Toggle (ModuleConfig.h) | Purpose |
-|---------|------------------------|---------|
-| Autoplay | `kAutoplayEnabled` | Drive arcs & holds, force Pure, suppress effects |
-| Network logging | `kNetworkLoggerEnabled` | Audit HTTP request / response traffic |
-| Network block | `kNetworkBlockEnabled` | Block score uploads, world-mode calls, etc |
-| SSL pinning bypass | `kDisableSslPinsEnabled` | Remove SSL pinning (off by default) |
+| Feature | `config.json` key | Purpose |
+|---------|-------------------|---------|
+| Logging | `Logging.level` | Minimum level written to logcat and files (`Debug`, `Info`, `Warn`, `Error`); defaults to `Debug` in debug builds and `Info` in release builds |
+| Autoplay | `Autoplay` | Drive arcs & holds, force Pure, suppress effects |
+| Network logging | `NetworkLogger` | Audit HTTP request / response traffic (off by default) |
+| Ordinary network block | `NetworkBlock` | Apply score/world-mode URL rules; mandatory custom-chart isolation remains independent |
+| SSL pinning bypass | `SslPinningBypass` | Remove SSL pinning on profiles with complete patch offsets (off by default) |
+| Custom charts | `CustomCharts` | Load `.arcpkg` and raw ZIP at startup with fixed network-isolation rules |
 
 ## Runtime version detection
 
@@ -43,11 +45,19 @@ Hooks are not installed immediately. `GameVersionManager` probes the game build 
 
 ## Configuration layout
 
+Runtime directory: `Android/data/<package>/files/ArcHelper/`. Feature instances generate and normalize `config.json`, custom charts are scanned from `charts/`, and process logs are written under `logs/` with five files retained.
+
+Configuration and packages are read once per process. Invalid registered values are rewritten to defaults while unknown keys are preserved; malformed JSON regenerates all Feature defaults. A raw ZIP needs only audio plus AFF files, and custom difficulty slots `0..4` are supported.
+
 - `src/config/GameProfile.hpp` — per-version function / RTTI / patch offsets
 - `src/config/GameStructs.hpp` — game object layouts (padded, compile-time verified)
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
-- `src/config/ModuleConfig.h` — feature toggles, target package names
+- `src/config/ModuleConfig.h` — module identity and target library names
+- `module/config.example.json` — example runtime configuration
+- `module/scope.txt` — module scope packaged at the ZIP root
+
+Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, `third_party/lsplt`, and `third_party/magic_enum`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. `magic_enum` is pinned to v0.9.8. The Zygisk API header is stored at `third_party/zygisk.hpp`.
 
 ## AI
 
@@ -57,4 +67,4 @@ This project was developed with AI assistance.
 
 - Project structure: `docs/project-structure.md`
 - Version support: `docs/version-support.md`
-- Offsets reference: `docs/6.12.11c-offsets.md`
+- Offsets reference: `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`

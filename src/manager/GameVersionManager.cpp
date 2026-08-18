@@ -2,13 +2,13 @@
 
 #include <algorithm>
 #include <array>
-#include <cstring>
 
 #include "config/ModuleConfig.h"
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
+#include "utils/memory/RuntimeMemory.hpp"
 
-namespace arc_autoplay {
+namespace arc_helper {
 namespace {
 
 constexpr size_t kMaxVersionStringLen = 64;
@@ -22,7 +22,7 @@ inline constexpr std::array<uint8_t, 16> kSig_SetAppVersion = {
 
 void ClearPendingJniException(JNIEnv *env, const char *where) {
     if (!env || !env->ExceptionCheck()) return;
-    ARC_LOGE("GameVersionManager: JNI exception at %s", where ? where : "unknown");
+    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
     env->ExceptionClear();
 }
 
@@ -48,15 +48,33 @@ GameVersionManager &GameVersionManager::Instance() {
 }
 
 void GameVersionManager::SetResolvedCallback(ResolvedCallback callback) {
+    std::scoped_lock lock(mutex_);
     resolved_callback_ = callback;
     FireResolvedCallback();
 }
 
+bool GameVersionManager::IsResolved() const {
+    std::scoped_lock lock(mutex_);
+    return active_profile_ != nullptr;
+}
+
+const cfg::GameProfile *GameVersionManager::GetActiveProfile() const {
+    std::scoped_lock lock(mutex_);
+    return active_profile_;
+}
+
 cfg::GameVersionId GameVersionManager::GetActiveVersionId() const {
+    std::scoped_lock lock(mutex_);
     return active_profile_ ? active_profile_->id : cfg::GameVersionId::kUnknown;
 }
 
+std::string GameVersionManager::GetResolvedVersionString() const {
+    std::scoped_lock lock(mutex_);
+    return resolved_version_string_;
+}
+
 bool GameVersionManager::EnsureLibBase() {
+    std::scoped_lock lock(mutex_);
     if (lib_base_) return true;
     if (!hook_manager_.EnsureReady()) return false;
 
@@ -64,54 +82,48 @@ bool GameVersionManager::EnsureLibBase() {
     return lib_base_ != 0;
 }
 
-bool GameVersionManager::MatchSetterSignature(uintptr_t offset) const {
-    const uintptr_t addr = lib_base_ + offset;
-    return mem::ProcMaps::IsReadable(addr, kSig_SetAppVersion.size()) &&
-           std::memcmp(reinterpret_cast<const void *>(addr),
-                       kSig_SetAppVersion.data(),
-                       kSig_SetAppVersion.size()) == 0;
-}
-
-const cfg::GameProfile *GameVersionManager::DetectCandidateProfile() const {
-    if (!lib_base_) return nullptr;
-
-    auto it = std::ranges::find_if(cfg::kSupportedGameProfiles, [this](const auto &profile) {
-        return MatchSetterSignature(profile.version_probe.set_app_version);
-    });
-
-    return it != cfg::kSupportedGameProfiles.end() ? &(*it) : nullptr;
-}
-
 std::string GameVersionManager::ReadLibcxxString(uintptr_t string_addr) const {
     if (!string_addr || !mem::ProcMaps::IsReadable(string_addr, 1)) return {};
 
-    const uint8_t first = mem::Read<uint8_t>(string_addr);
+    const auto first_result = mem::RuntimeMemory::Process().Read<uint8_t>(string_addr);
+    if (!first_result) return {};
+    const uint8_t first = *first_result;
     if ((first & 1u) == 0) {
         const size_t size = static_cast<size_t>(first >> 1);
         if (size == 0) return {};
-        if (size > 22 || !mem::ProcMaps::IsReadable(string_addr + 1, size)) return {};
+        if (size > 22 || string_addr == UINTPTR_MAX ||
+            !mem::ProcMaps::IsReadable(string_addr + 1, size)) return {};
         return std::string(reinterpret_cast<const char *>(string_addr + 1), size);
     }
 
-    if (!mem::ProcMaps::IsReadable(string_addr + 16, sizeof(uintptr_t))) return {};
-    const size_t size = mem::Read<size_t>(string_addr + 8);
-    const uintptr_t data = mem::Read<uintptr_t>(string_addr + 16);
+    if (string_addr > UINTPTR_MAX - 16 ||
+        !mem::ProcMaps::IsReadable(string_addr + 8, sizeof(size_t)) ||
+        !mem::ProcMaps::IsReadable(string_addr + 16, sizeof(uintptr_t))) {
+        return {};
+    }
+    const auto size_result = mem::RuntimeMemory::Process().Read<size_t>(string_addr + 8);
+    const auto data_result = mem::RuntimeMemory::Process().Read<uintptr_t>(string_addr + 16);
+    if (!size_result || !data_result) return {};
+    const size_t size = *size_result;
+    const uintptr_t data = *data_result;
     if (!data || size == 0 || size > kMaxVersionStringLen) return {};
     if (!mem::ProcMaps::IsReadable(data, size)) return {};
     return std::string(reinterpret_cast<const char *>(data), size);
 }
 
 std::string GameVersionManager::ReadAppVersionString(const cfg::GameProfile &profile) const {
-    if (!lib_base_) return {};
+    if (!lib_base_ ||
+        profile.version_probe.app_version_string > UINTPTR_MAX - lib_base_) return {};
     return ReadLibcxxString(lib_base_ + profile.version_probe.app_version_string);
 }
 
 bool GameVersionManager::TryResolveFromString(const char *version_string) {
+    std::scoped_lock lock(mutex_);
     if (!version_string || version_string[0] == '\0') return false;
 
     const cfg::GameProfile *profile = cfg::FindGameProfileByVersionString(version_string);
     if (!profile) {
-        ARC_LOGE("GameVersionManager: unsupported appVersion '%s'", version_string);
+        ARC_LOGE("Unsupported appVersion '%s'", version_string);
         return false;
     }
 
@@ -121,62 +133,65 @@ bool GameVersionManager::TryResolveFromString(const char *version_string) {
     }
 
     active_profile_ = profile;
-    candidate_profile_ = profile;
     resolved_version_string_ = version_string;
-    ARC_LOGI("GameVersionManager: resolved version %s", resolved_version_string_.c_str());
+    ARC_LOGI("Resolved version %s", resolved_version_string_.c_str());
     FireResolvedCallback();
     return true;
 }
 
 bool GameVersionManager::TryResolveFromGlobal(const cfg::GameProfile &profile) {
+    std::scoped_lock lock(mutex_);
     const std::string version = ReadAppVersionString(profile);
     return TryResolveFromString(version.c_str());
 }
 
 bool GameVersionManager::EnsureInstalled() {
+    std::scoped_lock lock(mutex_);
     if (IsResolved()) {
         FireResolvedCallback();
         return true;
     }
     if (!EnsureLibBase()) return false;
 
-    if (!candidate_profile_) {
-        candidate_profile_ = DetectCandidateProfile();
-        if (candidate_profile_) {
-            ARC_LOGI("GameVersionManager: matched candidate profile %s", candidate_profile_->version_name);
-        } else {
-            ARC_LOGE("GameVersionManager: failed to match any supported profile");
-            return false;
-        }
+    for (const auto &profile : cfg::kSupportedGameProfiles) {
+        if (TryResolveFromGlobal(profile)) return true;
     }
-
-    if (TryResolveFromGlobal(*candidate_profile_)) return true;
     if (hook_installed_) return false;
 
-    hook_installed_ = hook_manager_.InstallInlineHook(addr_set_app_version_,
-                                                      candidate_profile_->version_probe.set_app_version,
-                                                      kSig_SetAppVersion,
-                                                      SetAppVersionHook,
-                                                      "Java_low_moe_AppActivity_setAppVersion");
+    auto registration = hook_manager_.RegisterInlineHookSymbol(
+        resolved_setter_addr_,
+        cfg::module::kLibName,
+        "Java_low_moe_AppActivity_setAppVersion",
+        kSig_SetAppVersion,
+        SetAppVersionHook,
+        "Java_low_moe_AppActivity_setAppVersion");
+    hook_installed_ = registration && hook_manager_.CommitInlineHook(registration);
     if (!hook_installed_) {
-        ARC_LOGE("GameVersionManager: failed to install setAppVersion hook");
+        ARC_LOGE("Failed to install setAppVersion hook");
         return false;
     }
 
-    return TryResolveFromGlobal(*candidate_profile_);
+    for (const auto &profile : cfg::kSupportedGameProfiles) {
+        if (TryResolveFromGlobal(profile)) return true;
+    }
+    return false;
 }
 
 void GameVersionManager::OnSetAppVersion(JNIEnv *env, jobject receiver, jstring version_string) {
     const std::string version_copy = CopyJniString(env, version_string);
     CALL_ORIG(SetAppVersionHook, env, receiver, version_string);
 
-    if (TryResolveFromString(version_copy.c_str())) return;
-    if (candidate_profile_) {
-        TryResolveFromGlobal(*candidate_profile_);
+    if (!version_copy.empty()) {
+        TryResolveFromString(version_copy.c_str());
+        return;
+    }
+    for (const auto &profile : cfg::kSupportedGameProfiles) {
+        if (TryResolveFromGlobal(profile)) return;
     }
 }
 
 void GameVersionManager::FireResolvedCallback() {
+    std::scoped_lock lock(mutex_);
     if (!active_profile_ || !resolved_callback_ || resolved_callback_fired_) return;
     resolved_callback_fired_ = true;
     resolved_callback_();
@@ -186,4 +201,4 @@ void GameVersionManager::SetAppVersionHook(JNIEnv *env, jobject receiver, jstrin
     Instance().OnSetAppVersion(env, receiver, version_string);
 }
 
-} // namespace arc_autoplay
+} // namespace arc_helper

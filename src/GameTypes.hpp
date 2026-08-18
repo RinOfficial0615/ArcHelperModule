@@ -2,11 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 #include "config/AutoplayConfig.h"
 #include "utils/MemoryUtils.hpp"
 
-namespace arc_autoplay::game {
+namespace arc_helper::game {
 
 class Object {
 public:
@@ -19,11 +20,13 @@ public:
 protected:
     template <typename T>
     T Read(size_t off) const {
+        if (addr_ == 0 || off > std::numeric_limits<uintptr_t>::max() - addr_) return T{};
         return mem::Read<T>(addr_ + off);
     }
 
     template <typename T>
     void Write(size_t off, T value) const {
+        if (addr_ == 0 || off > std::numeric_limits<uintptr_t>::max() - addr_) return;
         mem::Write<T>(addr_ + off, value);
     }
 
@@ -83,18 +86,21 @@ public:
 
     NotePosition pos() const { return NotePosition(ReadPtr(cfg::autoplay::kNote_pos_ptr_off)); }
 
-    uintptr_t vtable() const { return mem::Read<uintptr_t>(addr()); }
+    uintptr_t vtable() const {
+        if (!*this) return 0;
+        return mem::Read<uintptr_t>(addr());
+    }
 
     uintptr_t vcall(size_t vtbl_off) const {
         const uintptr_t vt = vtable();
-        if (!vt) return 0;
+        if (!vt || vtbl_off > std::numeric_limits<uintptr_t>::max() - vt) return 0;
         return mem::Read<uintptr_t>(vt + vtbl_off);
     }
 
     // Itanium ABI: typeinfo ptr is stored at *(vptr - 8).
     uintptr_t typeinfo() const {
         const uintptr_t vptr = vtable();
-        if (!vptr) return 0;
+        if (!vptr || vptr < sizeof(uintptr_t)) return 0;
         return mem::Read<uintptr_t>(vptr - 8);
     }
 
@@ -128,4 +134,4 @@ public:
     int sys_id() const { return Read<int32_t>(cfg::autoplay::kTouch_sys_id_i32_off); }
 };
 
-} // namespace arc_autoplay::game
+} // namespace arc_helper::game
