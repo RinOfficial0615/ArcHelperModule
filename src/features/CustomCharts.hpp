@@ -1,7 +1,7 @@
 #pragma once
 
 #include "config/CustomChartConfig.h"
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "features/Feature.hpp"
 
 namespace arc_helper {

@@ -9,7 +9,7 @@
 | concepts / `requires` | `ConfigManager.hpp`、`Feature.hpp` | 用 `ConfigScalar` 和 `ConfigValidator` 把错误从函数体前移到接口约束；`ReadJsonValue`、`Read`、`ReadConfig` 应继续保持同一套约束。 |
 | `std::remove_cvref_t` / `std::same_as` / `std::predicate` | 配置类型推导与 validator | 比 `is_same_v` 与函数体 `static_assert` 更直接，保留。 |
 | `std::in_range` | 整数 JSON 读取 | 先验证再窄化，避免未定义行为，保留。 |
-| `std::ranges::find_if` | `GameProfile.hpp` | 适合小型只读 profile 表，保留，不为此引入额外 registry。 |
+| `std::ranges::find_if` | `src/game/GameProfile.hpp` | 适合小型只读 profile 表，保留，不为此引入额外 registry。 |
 | `std::string_view` / `std::span` | Feature 名称、Hook 注册批次、配置键 | 只读借用值使用 vocabulary type，生命周期由调用者持有。 |
 | `std::to_underlying` | 适合枚举日志/索引转换 | 后续替换手写 `static_cast` 时优先使用；必须先保证枚举值已经经过验证。 |
 

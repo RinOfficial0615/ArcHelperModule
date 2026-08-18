@@ -6,7 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "config/CustomChartConfig.h"
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "manager/network/NetworkHandler.hpp"
 #include "manager/custom_chart/CustomChartGameplaySession.hpp"
 #include "utils/Sha256.hpp"

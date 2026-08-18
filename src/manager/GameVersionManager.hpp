@@ -10,7 +10,7 @@
 #include <mutex>
 #include <string>
 
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "manager/HookManager.hpp"
 
 namespace arc_helper {

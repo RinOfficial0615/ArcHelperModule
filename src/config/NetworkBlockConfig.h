@@ -6,7 +6,7 @@
 #include <span>
 #include <string_view>
 
-#include "config/GameStructs.hpp"
+#include "game/GameStructs.hpp"
 
 namespace arc_helper::cfg::network_block {
 

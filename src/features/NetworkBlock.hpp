@@ -1,7 +1,7 @@
 #pragma once
 
 #include "features/Feature.hpp"
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "manager/NetworkManager.hpp"
 
 namespace arc_helper {

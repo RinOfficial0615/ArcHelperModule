@@ -28,15 +28,15 @@ Language: [English](project-structure.md) | 简体中文
 - `src/manager/custom_chart/CustomChartGameplaySession.{hpp,cpp}` — 自定义谱面游玩窗口的原子状态；map `.aff` 开始，读到 `kJacketAssetName` 结束
 - `src/features/CustomCharts.{hpp,cpp}` — 自定义谱面功能生命周期与 AssetVirtualizer 安装
 - `src/features/AssetVirtualizer.{hpp,cpp}` — 虚拟 songlist/自定义资源及官方默认资源重定向
-- `src/GameTypes.hpp` — `Gameplay`、`LogicArcNote`、`LogicHoldNote` 等轻量封装
+- `src/game/GameTypes.hpp` — `Gameplay`、`LogicArcNote`、`LogicHoldNote` 等轻量封装
 - `src/utils/MemoryUtils.hpp` — 内存工具汇总头
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`、`AddressResolver`、`RuntimeMemory`、`PatchTransaction`、`InlineHook`、`ShadowHookAdapter`
 - `src/utils/Log.{h,cpp}` — 带来源的 `ARC_LOGD/I/W/E`、logcat/文件 sink、截断与轮换
 - `third_party/json/` — 用于 JSON 解析和序列化的 nlohmann/json 子模块
 - `src/utils/Sha256.{hpp,cpp}` — 包内容哈希与稳定 ID 支持
 - `src/utils/ZipArchive.{hpp,cpp}` — 带路径、大小、CRC 与压缩率检查的 ZIP 读取器
-- `src/config/GameStructs.hpp` — 按版本模板化的布局 struct（显式 padding，`offsetof` 校验）
-- `src/config/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
+- `src/game/GameStructs.hpp` — 按版本模板化的布局 struct（显式 padding，`offsetof` 校验）
+- `src/game/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
 - `src/config/NetworkBlockConfig.h` — 网络策略、拦截规则、字节签名
 - `src/config/CustomChartConfig.h` — 资源别名、解析边界、布局保护与 Hook 签名

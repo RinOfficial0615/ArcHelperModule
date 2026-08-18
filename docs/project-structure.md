@@ -28,15 +28,15 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/manager/custom_chart/CustomChartGameplaySession.{hpp,cpp}` — atomic custom-chart play window; mapped `.aff` starts it, a `kJacketAssetName` read ends it
 - `src/features/CustomCharts.{hpp,cpp}` — custom-chart feature lifecycle and AssetVirtualizer installation
 - `src/features/AssetVirtualizer.{hpp,cpp}` — virtual songlist/custom assets and official-default asset redirects
-- `src/GameTypes.hpp` — thin wrappers for `Gameplay`, `LogicArcNote`, `LogicHoldNote` etc
+- `src/game/GameTypes.hpp` — thin wrappers for `Gameplay`, `LogicArcNote`, `LogicHoldNote` etc
 - `src/utils/MemoryUtils.hpp` — umbrella include for memory tools
 - `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`, `AddressResolver`, `RuntimeMemory`, `PatchTransaction`, `InlineHook`, `ShadowHookAdapter`
 - `src/utils/Log.{h,cpp}` — source-aware `ARC_LOGD/I/W/E`, logcat/file sinks, truncation and rotation
 - `third_party/json/` — nlohmann/json submodule used for parsing and serialization
 - `src/utils/Sha256.{hpp,cpp}` — content hashing and stable-ID support
 - `src/utils/ZipArchive.{hpp,cpp}` — ZIP reader with path, size, CRC, and ratio validation
-- `src/config/GameStructs.hpp` — version-templated layout structs (explicit padding, `offsetof`-verified)
-- `src/config/GameProfile.hpp` — per-version function/RTTI/patch offsets
+- `src/game/GameStructs.hpp` — version-templated layout structs (explicit padding, `offsetof`-verified)
+- `src/game/GameProfile.hpp` — per-version function/RTTI/patch offsets
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/CustomChartConfig.h` — asset aliases, parser bounds, layout guards, and hook signatures

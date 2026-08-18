@@ -49,8 +49,8 @@ Runtime directory: `Android/data/<package>/files/ArcHelper/`. Feature instances 
 
 Configuration and packages are read once per process. Invalid registered values are rewritten to defaults while unknown keys are preserved; malformed JSON regenerates all Feature defaults. A raw ZIP needs only audio plus AFF files, and custom difficulty slots `0..4` are supported.
 
-- `src/config/GameProfile.hpp` — per-version function / RTTI / patch offsets
-- `src/config/GameStructs.hpp` — game object layouts (padded, compile-time verified)
+- `src/game/GameProfile.hpp` — per-version function / RTTI / patch offsets
+- `src/game/GameStructs.hpp` — game object layouts (padded, compile-time verified)
 - `src/config/AutoplayConfig.h` — autoplay behaviour knobs & byte signatures
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/ModuleConfig.h` — module identity and target library names

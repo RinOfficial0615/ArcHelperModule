@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-First-party C++23 code lives in `src/`. Entry points are in `src/wrapper/`, runtime coordination in `src/manager/`, user-facing behavior in `src/features/`, version profiles in `src/config/`, and reusable helpers in `src/utils/`. Host tests live in `tests/`, packaging files in `module/`, and notes in `docs/`. Dependencies are submodules under `third_party/`; avoid unrelated edits or formatting churn there.
+First-party C++23 code lives in `src/`. Entry points are in `src/wrapper/`, runtime coordination in `src/manager/`, user-facing behavior in `src/features/`, version profiles and game layouts in `src/game/`, feature knobs in `src/config/`, and reusable helpers in `src/utils/`. Host tests live in `tests/`, packaging files in `module/`, and notes in `docs/`. Dependencies are submodules under `third_party/`; avoid unrelated edits or formatting churn there.
 
 ## Reuse Before Implementing
 

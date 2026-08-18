@@ -4,10 +4,10 @@
 #include <cstring>
 #include <cstdint>
 
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "features/Feature.hpp"
 #include "manager/HookManager.hpp"
-#include "GameTypes.hpp"
+#include "game/GameTypes.hpp"
 #include "utils/memory/PatchTransaction.hpp"
 
 namespace arc_helper {

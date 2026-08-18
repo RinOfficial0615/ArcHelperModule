@@ -7,7 +7,7 @@
 #include <string>
 #include <string_view>
 
-#include "config/GameStructs.hpp"
+#include "game/GameStructs.hpp"
 
 namespace arc_helper::cfg::custom_charts {
 

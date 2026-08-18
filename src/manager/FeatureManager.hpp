@@ -2,7 +2,7 @@
 
 #include <mutex>
 
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 
 namespace arc_helper {
 

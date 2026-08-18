@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "features/Feature.hpp"
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 #include "manager/HookManager.hpp"
 #include "utils/memory/PatchTransaction.hpp"
 

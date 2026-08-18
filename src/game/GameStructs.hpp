@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "config/GameProfile.hpp"
+#include "game/GameProfile.hpp"
 
 namespace arc_helper::cfg::layouts {
 

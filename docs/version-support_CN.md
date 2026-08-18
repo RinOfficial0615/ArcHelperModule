@@ -20,15 +20,15 @@ Language: [English](version-support.md) | 简体中文
 
 ## 新增版本
 
-1. 在 `src/config/GameProfile.hpp` 中新增 `GameVersionId` 枚举值。
+1. 在 `src/game/GameProfile.hpp` 中新增 `GameVersionId` 枚举值。
 2. 只需填入版本字符串全局变量偏移；`setAppVersion` 通过 ELF 导出符号解析，不再需要每版本偏移。
 3. 填入该版本的 autoplay / network / ssl_pins / custom_charts 偏移与 capability。
-4. 若对象布局发生变化，在 `src/config/GameStructs.hpp` 特化对应模板。
+4. 若对象布局发生变化，在 `src/game/GameStructs.hpp` 特化对应模板。
 5. 更新本文档。
 
 ## 偏移组织
 
-- **对象布局** — `src/config/GameStructs.hpp`（版本模板化，`offsetof` + `static_assert` 编译期校验）。
+- **对象布局** — `src/game/GameStructs.hpp`（版本模板化，`offsetof` + `static_assert` 编译期校验）。
 - **共享常量和字节签名** — `src/config/AutoplayConfig.h`、`src/config/NetworkBlockConfig.h` 和 `src/config/CustomChartConfig.h`。
-- **函数 / RTTI / patch 偏移** — `src/config/GameProfile.hpp`（每个支持版本一条记录）。
+- **函数 / RTTI / patch 偏移** — `src/game/GameProfile.hpp`（每个支持版本一条记录）。
 - **文档化位点** — `docs/offsets/6.12.11c-offsets.md`、`docs/offsets/6.16.2c-offsets.md`。

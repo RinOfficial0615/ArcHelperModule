@@ -51,8 +51,8 @@ git submodule update --init --recursive
 
 配置和谱面目录每个进程只读取一次。已注册字段类型或范围错误时会写回默认值，未知字段保留；JSON 整体损坏时重新生成全部 Feature 默认值。raw ZIP 最低只需音频和 AFF，自定义难度槽位支持 `0..4`。
 
-- `src/config/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
-- `src/config/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
+- `src/game/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
+- `src/game/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
 - `src/config/AutoplayConfig.h` — 自动打歌的行为常量和字节签名
 - `src/config/NetworkBlockConfig.h` — 网络策略、拦截规则、字节签名
 - `module/config.example.json` — 运行时配置示例

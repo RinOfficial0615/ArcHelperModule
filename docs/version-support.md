@@ -20,15 +20,15 @@ Unknown builds stay in a "detected, not armed" state — the wrong offsets never
 
 ## Adding a version
 
-1. Append a new `GameVersionId` variant to `src/config/GameProfile.hpp`.
+1. Append a new `GameVersionId` variant to `src/game/GameProfile.hpp`.
 2. Fill in the version string global offset. The `setAppVersion` hook is resolved by its exported ELF symbol and does not need a per-build offset.
 3. Fill in autoplay / network / ssl_pins / custom_charts offsets and capabilities for that build.
-4. If object layouts changed, specialize the corresponding struct template in `src/config/GameStructs.hpp`.
+4. If object layouts changed, specialize the corresponding struct template in `src/game/GameStructs.hpp`.
 5. Update this file.
 
 ## Offset organisation
 
-- **Object layouts** — `src/config/GameStructs.hpp` (version-templated, compile-time verified via `offsetof` + `static_assert`).
+- **Object layouts** — `src/game/GameStructs.hpp` (version-templated, compile-time verified via `offsetof` + `static_assert`).
 - **Shared constants & signatures** — `src/config/AutoplayConfig.h`, `src/config/NetworkBlockConfig.h`, and `src/config/CustomChartConfig.h`.
-- **Function / RTTI / patch-site offsets** — `src/config/GameProfile.hpp` (one entry per supported version).
+- **Function / RTTI / patch-site offsets** — `src/game/GameProfile.hpp` (one entry per supported version).
 - **Documented sites** — `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`.

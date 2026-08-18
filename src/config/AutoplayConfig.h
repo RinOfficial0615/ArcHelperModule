@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "config/GameStructs.hpp"
+#include "game/GameStructs.hpp"
 
 namespace arc_helper::cfg::autoplay {
 
