@@ -1,5 +1,6 @@
 #include "manager/GameVersionManager.hpp"
 
+#include <algorithm>
 #include <array>
 
 #include "config/ModuleConfig.h"

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "utils/Log.h"
 #include "config/ModuleConfig.h"
