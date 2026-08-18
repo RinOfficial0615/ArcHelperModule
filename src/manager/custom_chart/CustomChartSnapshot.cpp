@@ -45,6 +45,12 @@ std::string ImportSnapshot::SongsJson() const {
             if (chart.rating_plus) difficulty["ratingPlus"] = true;
             item["difficulties"].push_back(std::move(difficulty));
         }
+        // The 6.16.2c parser treats Beyond as locally locked unless this
+        // song-level flag is present. Custom charts are local assets, so a
+        // song with a Beyond chart must opt into the same local-unlock path.
+        if (song.has_chart[cfg::custom_charts::kBeyondDifficulty]) {
+            item["byd_local_unlock"] = true;
+        }
         result.push_back(std::move(item));
     }
     return result.dump(-1, ' ', false, Json::error_handler_t::replace);

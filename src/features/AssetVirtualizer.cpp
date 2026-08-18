@@ -11,6 +11,7 @@
 #include <new>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "manager/CustomChartManager.hpp"
 #include "manager/GameManager.hpp"
 #include "manager/HookManager.hpp"
+#include "manager/custom_chart/CustomChartGameplaySession.hpp"
 #include <lsplt.hpp>
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
@@ -43,6 +45,7 @@ struct VirtualDirectory {
 
 std::mutex g_assets_mutex;
 std::unordered_map<AAsset *, VirtualAsset> g_assets;
+std::unordered_map<AAsset *, std::string> g_asset_paths;
 std::unordered_map<AAssetDir *, std::unique_ptr<VirtualDirectory>> g_directories;
 uintptr_t g_lib_base = 0;
 cfg::CustomChartsOffsets g_offsets{};
@@ -69,8 +72,12 @@ FindSongByIdFn g_find_song_by_id = nullptr;
 bool ValidateInstallTargets() {
     if (!g_offsets.songlist_asset_loader_caller || !g_offsets.songlist_digest_size_guard ||
         !g_offsets.songlist_digest_compare_guard || !g_offsets.songlist_difficulty_filter ||
+        !g_offsets.difficulty_availability ||
+        !g_offsets.song_unlock_mask_check ||
+        !g_offsets.content_availability ||
+        !g_offsets.chart_path ||
         !g_offsets.song_registry_global || !g_offsets.find_song_by_id) {
-        ARC_LOGE("AssetVirtualizer: incomplete custom-chart profile");
+        ARC_LOGE("Incomplete custom-chart profile");
         return false;
     }
 
@@ -83,7 +90,7 @@ bool ValidateInstallTargets() {
         mem::Read<uint32_t>(loader_call) != cfg::custom_charts::kExpectedSonglistLoaderCall ||
         mem::Read<uint32_t>(size_guard) != cfg::custom_charts::kExpectedDigestSizeGuard ||
         mem::Read<uint32_t>(compare_guard) != cfg::custom_charts::kExpectedDigestCompareGuard) {
-        ARC_LOGE("AssetVirtualizer: install target signature mismatch");
+        ARC_LOGE("Install target signature mismatch");
         return false;
     }
     return true;
@@ -131,7 +138,7 @@ bool PatchSonglistDigestGuards() {
         !current_size || !current_compare ||
         *current_size != cfg::custom_charts::kExpectedDigestSizeGuard ||
         *current_compare != cfg::custom_charts::kExpectedDigestCompareGuard) {
-        ARC_LOGE("AssetVirtualizer: songlist digest guard signature mismatch");
+        ARC_LOGE("Songlist digest guard signature mismatch");
         return false;
     }
 
@@ -156,12 +163,12 @@ bool PatchSonglistDigestGuards() {
     if (!g_songlist_patch_transaction.Apply(patches)) {
         if (g_songlist_patch_transaction.IsDegraded() &&
             !g_songlist_patch_transaction.Rollback()) {
-            ARC_LOGE("AssetVirtualizer: degraded digest rollback failed");
+            ARC_LOGE("Degraded digest rollback failed");
         }
-        ARC_LOGE("AssetVirtualizer: digest guard transaction failed");
+        ARC_LOGE("Digest guard transaction failed");
         return false;
     }
-    ARC_LOGI("AssetVirtualizer: songlist digest guards patched");
+    ARC_LOGI("Songlist digest guards patched");
     return true;
 }
 
@@ -171,7 +178,7 @@ bool RestoreSonglistDigestGuards() {
         return true;
     }
     const bool restored = g_songlist_patch_transaction.Rollback().has_value();
-    ARC_LOGI("AssetVirtualizer: songlist digest rollback %s",
+    ARC_LOGI("Songlist digest rollback %s",
              restored ? "OK" : "FAILED");
     return restored;
 }
@@ -194,7 +201,7 @@ bool RestoreAssetHooks(dev_t dev, ino_t inode) {
     restore("AAsset_close", g_close_original);
     const bool committed = !queued || lsplt::CommitHook();
     const bool restored = registered && committed;
-    ARC_LOGI("AssetVirtualizer: PLT rollback %s", restored ? "OK" : "FAILED");
+    ARC_LOGI("PLT rollback %s", restored ? "OK" : "FAILED");
     return restored;
 }
 
@@ -235,7 +242,7 @@ bool IsValidRuntimeList(const RuntimeSongDifficultyList &list) {
            (count == 0 || mem::ProcMaps::IsReadable(begin, count * sizeof(RuntimeSongDifficultyPair)));
 }
 
-bool IsCustomRuntimeSong(uintptr_t song) {
+bool ReadSongId(uintptr_t song, std::string_view &out) {
     if (!song || !mem::ProcMaps::IsReadable(song, 24)) return false;
     const auto *raw = reinterpret_cast<const uint8_t *>(song);
     const char *data = nullptr;
@@ -246,12 +253,19 @@ bool IsCustomRuntimeSong(uintptr_t song) {
     } else {
         std::memcpy(&size, raw + 8, sizeof(size));
         std::memcpy(&data, raw + 16, sizeof(data));
-        if (!data || !mem::ProcMaps::IsReadable(reinterpret_cast<uintptr_t>(data), 3)) return false;
+        if (!data || size == 0 ||
+            !mem::ProcMaps::IsReadable(reinterpret_cast<uintptr_t>(data), size)) {
+            return false;
+        }
     }
-    return size >= cfg::custom_charts::kCustomSongIdPrefix.size() &&
-           std::memcmp(data,
-                       cfg::custom_charts::kCustomSongIdPrefix.data(),
-                       cfg::custom_charts::kCustomSongIdPrefix.size()) == 0;
+    if (size == 0 || size > cfg::custom_charts::kMaxSanitizedIdLength) return false;
+    out = std::string_view(data, size);
+    return true;
+}
+
+bool IsCustomRuntimeSong(uintptr_t song) {
+    std::string_view id;
+    return ReadSongId(song, id) && CustomChartManager::Instance().ContainsSongId(id);
 }
 
 bool ContainsRuntimeSong(const RuntimeSongDifficultyList &list, uintptr_t song) {
@@ -287,6 +301,88 @@ bool IsValidDifficultyObject(uintptr_t difficulty_object) {
     return difficulty_object && (difficulty_object & (alignof(uintptr_t) - 1)) == 0 &&
            mem::ProcMaps::IsReadable(
                difficulty_object, cfg::custom_charts::kDifficultyObjectReadableBytes);
+}
+
+void TrackAssetPath(AAsset *asset, std::string_view logical_path) {
+    if (!asset) return;
+    std::scoped_lock lock(g_assets_mutex);
+    g_asset_paths[asset] = std::string(logical_path);
+}
+
+bool UnlockCustomDifficulty(uintptr_t song, unsigned int requested_difficulty) {
+    if (!IsCustomRuntimeSong(song) ||
+        requested_difficulty >= cfg::custom_charts::kDifficultyCount) {
+        return false;
+    }
+
+    const uintptr_t slot = song + cfg::custom_charts::kDifficultyPointersOffset +
+                           requested_difficulty * sizeof(uintptr_t);
+    const uintptr_t difficulty_object = mem::Read<uintptr_t>(slot);
+    if (!IsValidDifficultyObject(difficulty_object)) return false;
+
+    const uintptr_t lock = difficulty_object + cfg::custom_charts::kDifficultyLockOffset;
+    if (lock < difficulty_object || !mem::ProcMaps::IsWritable(lock, sizeof(uint8_t))) {
+        ARC_LOGE("Custom difficulty lock field is not writable for %p",
+                 reinterpret_cast<void *>(song));
+        return false;
+    }
+    const auto current = mem::RuntimeMemory::Process().Read<uint8_t>(lock);
+    if (!current) return false;
+    if (*current == 0) return true;
+    if (!mem::RuntimeMemory::Process().Write<uint8_t>(lock, 0)) {
+        ARC_LOGE("Failed to clear custom difficulty lock for %p class %u",
+                 reinterpret_cast<void *>(song),
+                 requested_difficulty);
+        return false;
+    }
+    ARC_LOGI("Cleared custom difficulty lock for %p class %u",
+             reinterpret_cast<void *>(song),
+             requested_difficulty);
+    return true;
+}
+
+uint64_t DifficultyAvailabilityHook(uintptr_t song, uint64_t difficulty) {
+    if (difficulty == cfg::custom_charts::kBeyondDifficulty &&
+        IsCustomRuntimeSong(song) &&
+        UnlockCustomDifficulty(song, static_cast<unsigned int>(difficulty))) {
+        return 1;
+    }
+    return CALL_ORIG(DifficultyAvailabilityHook, song, difficulty);
+}
+
+uint64_t SongUnlockMaskCheckHook(uintptr_t state, uintptr_t song) {
+    const uint64_t unlocked = CALL_ORIG(SongUnlockMaskCheckHook, state, song);
+    return unlocked || IsCustomRuntimeSong(song);
+}
+
+uint64_t ContentAvailabilityHook(uintptr_t song,
+                                 uint32_t difficulty,
+                                 uint32_t state,
+                                 uint32_t flags) {
+    // Necessary so SongCell/play launcher do not take the immediate
+    // loc_C9940C download branch for Beyond. Not sufficient to start play:
+    // chartExists still goes through sub_A74680, which for class 3 builds
+    // a writable-dir pack name instead of songs/{id}/3.aff.
+    if (IsCustomRuntimeSong(song)) return 0;
+    return CALL_ORIG(ContentAvailabilityHook, song, difficulty, state, flags);
+}
+
+std::string ChartPathHook(uintptr_t song, uint32_t difficulty) {
+    // Official songs, including official Beyond packs, always use the
+    // original builder. Membership is the import-success id set. The
+    // rewritten path is emitted only when that difficulty was imported.
+    std::string_view id;
+    if (!IsCustomRuntimeSong(song) ||
+        difficulty >= cfg::custom_charts::kDifficultyCount ||
+        !ReadSongId(song, id)) {
+        return CALL_ORIG(ChartPathHook, song, difficulty);
+    }
+    std::string path = cfg::custom_charts::LocalChartAssetPath(id, difficulty);
+    if (!CustomChartManager::Instance().ResolveAsset(path)) {
+        return CALL_ORIG(ChartPathHook, song, difficulty);
+    }
+    ARC_LOGI("Custom chart path %s", path.c_str());
+    return path;
 }
 
 bool NormalizeMissingDifficultySlots(uintptr_t song, unsigned int requested_difficulty) {
@@ -328,9 +424,8 @@ bool NormalizeMissingDifficultySlots(uintptr_t song, unsigned int requested_diff
         if (!mem::RuntimeMemory::Process().Write<uintptr_t>(slot, fallback)) return false;
         ++normalized;
     }
-
     if (normalized) {
-        ARC_LOGI("AssetVirtualizer: normalized %zu missing difficulty slots for %p using class %u",
+        ARC_LOGI("Normalized %zu missing difficulty slots for %p using class %u",
                  normalized,
                  reinterpret_cast<void *>(song),
                  requested_difficulty);
@@ -363,7 +458,7 @@ RuntimeSongDifficultyList SonglistDifficultyFilterHook(void *context,
             custom_scope = ContainsCustomRuntimeSong(probe);
             ::operator delete(probe.begin);
         } else {
-            ARC_LOGE("AssetVirtualizer: invalid future-difficulty scope probe");
+            ARC_LOGE("Invalid future-difficulty scope probe");
         }
     }
     if (!custom_scope) return result;
@@ -374,7 +469,15 @@ RuntimeSongDifficultyList SonglistDifficultyFilterHook(void *context,
         const uintptr_t song = FindRuntimeSong(song_id);
         if (!song || !IsCustomRuntimeSong(song) || ContainsRuntimeSong(result, song)) continue;
         if (!NormalizeMissingDifficultySlots(song, difficulty)) {
-            ARC_LOGE("AssetVirtualizer: invalid runtime difficulty layout for %s class %u",
+            ARC_LOGE("Invalid runtime difficulty layout for %s class %u",
+                     song_id.c_str(),
+                     difficulty);
+            continue;
+        }
+        // In 6.16.2c the local-lock decision is made from difficulty +0xF0;
+        // the song-level byd_local_unlock JSON field is not consulted here.
+        if (!UnlockCustomDifficulty(song, difficulty)) {
+            ARC_LOGE("Unable to unlock custom difficulty for %s class %u",
                      song_id.c_str(),
                      difficulty);
             continue;
@@ -386,7 +489,7 @@ RuntimeSongDifficultyList SonglistDifficultyFilterHook(void *context,
     const size_t old_count = result.begin ? static_cast<size_t>(result.end - result.begin) : 0;
     if (additions.size() > std::numeric_limits<size_t>::max() - old_count ||
         old_count + additions.size() > cfg::custom_charts::kMaxRuntimeDifficultyPairs) {
-        ARC_LOGE("AssetVirtualizer: runtime difficulty list capacity exceeded");
+        ARC_LOGE("Runtime difficulty list capacity exceeded");
         return result;
     }
     const size_t new_count = old_count + additions.size();
@@ -396,7 +499,7 @@ RuntimeSongDifficultyList SonglistDifficultyFilterHook(void *context,
     std::copy(additions.begin(), additions.end(), merged + old_count);
     ::operator delete(result.begin);
     result = {merged, merged + new_count, merged + new_count};
-    ARC_LOGI("AssetVirtualizer: added %zu custom songs for difficulty %u",
+    ARC_LOGI("Added %zu custom songs for difficulty %u",
              additions.size(), difficulty);
     return result;
 }
@@ -405,7 +508,7 @@ void FmodLoadBgmHook(void *provider, const char *path, int channel) {
     if (path) {
         const auto *source = CustomChartManager::Instance().ResolveAsset(path);
         if (source && !source->starts_with(cfg::custom_charts::kOfficialAssetPrefix)) {
-            ARC_LOGI("AssetVirtualizer: FMOD remapped %s -> %s", path, source->c_str());
+            ARC_LOGI("FMOD remapped %s -> %s", path, source->c_str());
             CALL_ORIG(FmodLoadBgmHook, provider, source->c_str(), channel);
             return;
         }
@@ -457,12 +560,12 @@ _Unwind_Reason_Code CollectThrowFrame(_Unwind_Context *context, void *argument) 
         const uintptr_t caller_offset = caller >= g_lib_base ? caller - g_lib_base : 0;
         ThrowTrace trace;
         _Unwind_Backtrace(CollectThrowFrame, &trace);
-        ARC_LOGE("[DEBUG-cxa-6162c] throw type=%s exception=%p caller=%p rel=0x%" PRIxPTR,
+        ARC_LOGE("throw type=%s exception=%p caller=%p rel=0x%" PRIxPTR,
                  type_name.data(), exception, reinterpret_cast<void *>(caller), caller_offset);
         for (size_t i = 0; i < trace.size; ++i) {
             const uintptr_t frame = trace.frames[i];
             const uintptr_t offset = frame >= g_lib_base ? frame - g_lib_base : 0;
-            ARC_LOGE("[DEBUG-cxa-6162c] frame[%zu]=%p rel=0x%" PRIxPTR,
+            ARC_LOGE("throw frame[%zu]=%p rel=0x%" PRIxPTR,
                      i, reinterpret_cast<void *>(frame), offset);
         }
         tracing = false;
@@ -477,50 +580,58 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     const std::string_view path(filename);
     auto &charts = CustomChartManager::Instance();
 
-    // test begin
-    // ARC_LOGI("AssetVirtualizer: OpenHook(%s)", filename);
-    // test end
-
     if (path == cfg::custom_charts::kSonglistAssetPath) {
         AAsset *asset = g_open_original(manager, filename, mode);
-        if (!asset || !IsParserCaller(reinterpret_cast<uintptr_t>(__builtin_return_address(0)))) return asset;
+        if (!asset || !IsParserCaller(reinterpret_cast<uintptr_t>(__builtin_return_address(0)))) {
+            TrackAssetPath(asset, path);
+            return asset;
+        }
         const auto official = ReadOfficialAsset(asset);
         if (!official) {
-            ARC_LOGE("AssetVirtualizer: failed to read official songlist");
+            ARC_LOGE("Failed to read official songlist");
             g_close_original(asset);
-            return g_open_original(manager, filename, mode);
+            asset = g_open_original(manager, filename, mode);
+            TrackAssetPath(asset, path);
+            return asset;
         }
         std::string error;
         const std::string merged = charts.MergeSonglist(
             std::string_view(reinterpret_cast<const char *>(official->data()), official->size()), error);
         if (merged.empty()) {
-            ARC_LOGE("AssetVirtualizer: songlist merge failed: %s", error.c_str());
+            ARC_LOGE("Songlist merge failed: %s", error.c_str());
             g_close_original(asset);
-            return g_open_original(manager, filename, mode);
+            asset = g_open_original(manager, filename, mode);
+            TrackAssetPath(asset, path);
+            return asset;
         }
         auto bytes = std::make_shared<std::vector<uint8_t>>(merged.begin(), merged.end());
         {
             std::scoped_lock lock(g_assets_mutex);
             g_assets[asset] = {std::move(bytes), 0, std::string(path)};
+            g_asset_paths[asset] = std::string(path);
         }
-        ARC_LOGI("AssetVirtualizer: serving merged songlist (%zu -> %zu bytes)", official->size(), merged.size());
+        ARC_LOGI("Serving merged songlist (%zu -> %zu bytes)", official->size(), merged.size());
         return asset;
     }
 
     const std::string *source = charts.ResolveAsset(path);
     if (!source) {
-        return g_open_original(manager, filename, mode);
+        AAsset *asset = g_open_original(manager, filename, mode);
+        TrackAssetPath(asset, path);
+        return asset;
     }
 
     if (source->starts_with(cfg::custom_charts::kOfficialAssetPrefix)) {
-        return g_open_original(manager,
-                               source->c_str() + cfg::custom_charts::kOfficialAssetPrefix.size(),
-                               mode);
+        AAsset *asset = g_open_original(manager,
+                                        source->c_str() + cfg::custom_charts::kOfficialAssetPrefix.size(),
+                                        mode);
+        TrackAssetPath(asset, path);
+        return asset;
     }
 
     const auto bytes = ReadFile(*source);
     if (!bytes) {
-        ARC_LOGE("AssetVirtualizer: failed to read %s -> %s", filename, source->c_str());
+        ARC_LOGE("Failed to read %s -> %s", filename, source->c_str());
         return nullptr;
     }
     AAsset *asset = g_open_original(manager, cfg::custom_charts::kSonglistAssetPath.data(), mode);
@@ -530,8 +641,12 @@ AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     {
         std::scoped_lock lock(g_assets_mutex);
         g_assets[asset] = {bytes, 0, std::string(path)};
+        g_asset_paths[asset] = std::string(path);
     }
-    ARC_LOGI("AssetVirtualizer: mapped %s (%zu bytes)", filename, bytes->size());
+    if (charts.IsCustomChartPath(path)) {
+        CustomChartGameplaySession::Instance().OnCustomChartMapped(path);
+    }
+    ARC_LOGI("Mapped %s (%zu bytes)", filename, bytes->size());
     return asset;
 }
 
@@ -549,7 +664,7 @@ AAssetDir *OpenDirHook(AAssetManager *manager, const char *dirname) {
         std::scoped_lock lock(g_assets_mutex);
         g_directories.emplace(handle, std::move(directory));
     }
-    ARC_LOGI("AssetVirtualizer: mapped directory %s", dirname);
+    ARC_LOGI("Mapped directory %s", dirname);
     return handle;
 }
 
@@ -577,24 +692,39 @@ void CloseDirHook(AAssetDir *asset_dir) {
 }
 
 int ReadHook(AAsset *asset, void *buffer, size_t count) {
+    std::string logical_path;
+    bool virtual_asset = false;
+    int virtual_result = -1;
     {
         std::scoped_lock lock(g_assets_mutex);
         const auto it = g_assets.find(asset);
         if (it != g_assets.end()) {
-            if (!buffer || !it->second.data) return -1;
-            const size_t remaining = it->second.position < it->second.data->size()
-                                         ? it->second.data->size() - it->second.position : 0;
-            const size_t n = std::min(count, remaining);
-            if (n != 0 &&
-                !mem::ProcMaps::IsWritable(reinterpret_cast<uintptr_t>(buffer), n)) {
-                return -1;
+            virtual_asset = true;
+            logical_path = it->second.logical_path;
+            if (buffer && it->second.data) {
+                const size_t remaining = it->second.position < it->second.data->size()
+                                             ? it->second.data->size() - it->second.position : 0;
+                const size_t n = std::min(count, remaining);
+                if (n == 0 ||
+                    mem::ProcMaps::IsWritable(reinterpret_cast<uintptr_t>(buffer), n)) {
+                    if (n) std::memcpy(buffer, it->second.data->data() + it->second.position, n);
+                    it->second.position += n;
+                    virtual_result = static_cast<int>(n);
+                }
             }
-            if (n) std::memcpy(buffer, it->second.data->data() + it->second.position, n);
-            it->second.position += n;
-            return static_cast<int>(n);
+        } else if (const auto path_it = g_asset_paths.find(asset); path_it != g_asset_paths.end()) {
+            logical_path = path_it->second;
         }
     }
-    return g_read_original ? g_read_original(asset, buffer, count) : -1;
+    if (virtual_asset) {
+        CustomChartGameplaySession::Instance().OnAssetRead(logical_path);
+        return virtual_result;
+    }
+    const int result = g_read_original ? g_read_original(asset, buffer, count) : -1;
+    if (!logical_path.empty()) {
+        CustomChartGameplaySession::Instance().OnAssetRead(logical_path);
+    }
+    return result;
 }
 
 off_t LengthHook(AAsset *asset) {
@@ -611,6 +741,7 @@ void CloseHook(AAsset *asset) {
     {
         std::scoped_lock lock(g_assets_mutex);
         g_assets.erase(asset);
+        g_asset_paths.erase(asset);
     }
     if (g_close_original) g_close_original(asset);
 }
@@ -640,7 +771,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         }
     }
     if (!inode) {
-        ARC_LOGE("AssetVirtualizer: target inode not found");
+        ARC_LOGE("Target inode not found");
         return false;
     }
 
@@ -673,7 +804,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         // available, then immediately restore it.
         lsplt::CommitHook();
         RestoreAssetHooks(dev, inode);
-        ARC_LOGE("AssetVirtualizer: PLT hook registration failed");
+        ARC_LOGE("PLT hook registration failed");
         return false;
     }
     const bool committed = lsplt::CommitHook();
@@ -682,12 +813,16 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
                            g_length_original && g_close_original;
     if (!plt_ready) {
         RestoreAssetHooks(dev, inode);
-        ARC_LOGE("AssetVirtualizer: PLT hook commit failed");
+        ARC_LOGE("PLT hook commit failed");
         return false;
     }
 
     uintptr_t cxa_throw = 0;
     uintptr_t songlist_difficulty_filter = 0;
+    uintptr_t difficulty_availability = 0;
+    uintptr_t song_unlock_mask_check = 0;
+    uintptr_t content_availability = 0;
+    uintptr_t chart_path = 0;
     uintptr_t fmod_load_bgm = 0;
     auto &hook_manager = HookManager::Instance();
     uintptr_t find_song_by_id = 0;
@@ -700,7 +835,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         RestoreAssetHooks(dev, inode);
         return false;
     }
-    std::array<HookManager::InlineHookRegistration, 3> registrations = {
+    std::array<HookManager::InlineHookRegistration, 7> registrations = {
         hook_manager.RegisterInlineHookSymbol(cxa_throw,
                                               cfg::module::kLibName,
                                               cfg::custom_charts::kCxaThrowSymbol,
@@ -718,11 +853,31 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
                                         cfg::custom_charts::kSigSonglistDifficultyFilter,
                                         SonglistDifficultyFilterHook,
                                         "songlist difficulty filter"),
+        hook_manager.RegisterInlineHook(difficulty_availability,
+                                        offsets_.difficulty_availability,
+                                        cfg::custom_charts::kSigDifficultyAvailability,
+                                        DifficultyAvailabilityHook,
+                                        "difficulty availability"),
+        hook_manager.RegisterInlineHook(song_unlock_mask_check,
+                                        offsets_.song_unlock_mask_check,
+                                        cfg::custom_charts::kSigSongUnlockMaskCheck,
+                                        SongUnlockMaskCheckHook,
+                                        "song unlock mask check"),
+        hook_manager.RegisterInlineHook(content_availability,
+                                        offsets_.content_availability,
+                                        cfg::custom_charts::kSigContentAvailability,
+                                        ContentAvailabilityHook,
+                                        "content availability"),
+        hook_manager.RegisterInlineHook(chart_path,
+                                        offsets_.chart_path,
+                                        cfg::custom_charts::kSigChartPath,
+                                        ChartPathHook,
+                                        "chart path"),
     };
     if (std::ranges::any_of(registrations, [](const auto &registration) {
             return !registration;
         })) {
-        ARC_LOGE("AssetVirtualizer: inline hook registration failed");
+        ARC_LOGE("Inline hook registration failed");
         RestoreAssetHooks(dev, inode);
         return false;
     }
@@ -738,7 +893,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
     }
 
     installed_ = true;
-    ARC_LOGI("AssetVirtualizer: hook install %s", installed_ ? "OK" : "FAILED");
+    ARC_LOGI("Hook install %s", installed_ ? "OK" : "FAILED");
     return installed_;
 }
 

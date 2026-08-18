@@ -68,7 +68,7 @@ bool ConfigManager::Load() {
     if (loaded_) return !root_dir_.empty();
     data_ = nlohmann::json::object();
     if (root_dir_.empty()) {
-        ARC_LOGE("ConfigManager: ArcHelper root unavailable; using in-memory defaults");
+        ARC_LOGE("ArcHelper root unavailable; using in-memory defaults");
         loaded_ = true;
         return false;
     }
@@ -76,21 +76,21 @@ bool ConfigManager::Load() {
     std::error_code ec;
     std::filesystem::create_directories(root_dir_, ec);
     if (ec) {
-        ARC_LOGE("ConfigManager: failed to create root %s: %s",
+        ARC_LOGE("Failed to create root %s: %s",
                  root_dir_.c_str(), ec.message().c_str());
         return false;
     }
     ec.clear();
     std::filesystem::create_directories(charts_dir_, ec);
     if (ec) {
-        ARC_LOGE("ConfigManager: failed to create charts directory %s: %s",
+        ARC_LOGE("Failed to create charts directory %s: %s",
                  charts_dir_.c_str(), ec.message().c_str());
         return false;
     }
     ec.clear();
     std::filesystem::create_directories(cache_dir_, ec);
     if (ec) {
-        ARC_LOGE("ConfigManager: failed to create cache directory %s: %s",
+        ARC_LOGE("Failed to create cache directory %s: %s",
                  cache_dir_.c_str(), ec.message().c_str());
         return false;
     }
@@ -106,12 +106,12 @@ bool ConfigManager::Load() {
     input.read(text.data(), static_cast<std::streamsize>(text.size()));
     const std::streamsize bytes_read = input.gcount();
     if (bytes_read < 0 || static_cast<size_t>(bytes_read) > kMaxConfigBytes) {
-        ARC_LOGE("ConfigManager: oversized %s; regenerating defaults", path.string().c_str());
+        ARC_LOGE("oversized %s; regenerating defaults", path.string().c_str());
         loaded_ = true;
         return true;
     }
     if (input.bad()) {
-        ARC_LOGE("ConfigManager: failed to read %s; regenerating defaults", path.string().c_str());
+        ARC_LOGE("failed to read %s; regenerating defaults", path.string().c_str());
         loaded_ = true;
         return true;
     }
@@ -119,7 +119,7 @@ bool ConfigManager::Load() {
 
     auto parsed = nlohmann::json::parse(text, nullptr, false);
     if (parsed.is_discarded() || !parsed.is_object()) {
-        ARC_LOGE("ConfigManager: malformed %s; regenerating defaults", path.string().c_str());
+        ARC_LOGE("malformed %s; regenerating defaults", path.string().c_str());
         loaded_ = true;
         return true;
     }
@@ -135,7 +135,7 @@ bool ConfigManager::Save() {
     std::error_code ec;
     std::filesystem::create_directories(root_dir_, ec);
     if (ec) {
-        ARC_LOGE("ConfigManager: failed to create root %s: %s",
+        ARC_LOGE("Failed to create root %s: %s",
                  root_dir_.c_str(), ec.message().c_str());
         return false;
     }
@@ -149,14 +149,14 @@ bool ConfigManager::Save() {
     {
         std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
         if (!output) {
-            ARC_LOGE("ConfigManager: failed to open %s", temporary.string().c_str());
+            ARC_LOGE("Failed to open %s", temporary.string().c_str());
             cleanup();
             return false;
         }
         output << data_.dump(2) << '\n';
         output.flush();
         if (!output) {
-            ARC_LOGE("ConfigManager: failed to write %s", temporary.string().c_str());
+            ARC_LOGE("Failed to write %s", temporary.string().c_str());
             cleanup();
             return false;
         }
@@ -164,7 +164,7 @@ bool ConfigManager::Save() {
 
     if (AtomicReplace(temporary, path)) return true;
     cleanup();
-    ARC_LOGE("ConfigManager: failed to replace %s", path.string().c_str());
+    ARC_LOGE("Failed to replace %s", path.string().c_str());
     return false;
 }
 

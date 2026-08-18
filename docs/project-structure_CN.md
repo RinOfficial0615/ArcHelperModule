@@ -25,6 +25,7 @@ Language: [English](project-structure.md) | 简体中文
 - `src/manager/custom_chart/CustomChartAssetIndex.{hpp,cpp}` — 逻辑资源路径、APK 时代别名和目录查询
 - `src/manager/custom_chart/CustomChartSnapshot.{hpp,cpp}` — 不可变歌曲模型与纯 songlist 合并
 - `src/manager/custom_chart/CustomChartReportWriter.{hpp,cpp}` — manifest/report 写入和孤儿缓存提交门
+- `src/manager/custom_chart/CustomChartGameplaySession.{hpp,cpp}` — 自定义谱面游玩窗口的原子状态；map `.aff` 开始，读到 `base.jpg` 结束
 - `src/features/CustomCharts.{hpp,cpp}` — 自定义谱面功能生命周期与 AssetVirtualizer 安装
 - `src/features/AssetVirtualizer.{hpp,cpp}` — 虚拟 songlist/自定义资源及官方默认资源重定向
 - `src/GameTypes.hpp` — `Gameplay`、`LogicArcNote`、`LogicHoldNote` 等轻量封装

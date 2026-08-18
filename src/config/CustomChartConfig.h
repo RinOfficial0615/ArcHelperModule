@@ -1,8 +1,10 @@
 #pragma once
 
 #include <array>
+#include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace arc_helper::cfg::custom_charts {
@@ -16,6 +18,7 @@ inline constexpr const char *kLightBackground = "base_light";
 inline constexpr const char *kConflictBackground = "base_conflict";
 inline constexpr double kDefaultChartConstant = -1.0;
 inline constexpr int64_t kMaximumPreviewEndMs = INT32_MAX;
+inline constexpr int64_t kDefaultPreviewDurationMs = 30000;
 inline constexpr int kMinimumRating = 0;
 inline constexpr int kMaximumRating = 20;
 inline constexpr int kMinimumChartConstant = 0;
@@ -37,7 +40,10 @@ inline constexpr uint64_t kMaxOfficialAssetBytes = 64ull * 1024 * 1024;
 // Runtime song object/list layout confirmed for the supported custom-chart build.
 inline constexpr uintptr_t kDifficultyPointersOffset = 0x228;
 inline constexpr uintptr_t kDifficultyPresenceOffset = 0x250;
-inline constexpr size_t kDifficultyObjectReadableBytes = 0x50;
+// sub_9F3830 reads the lock flag at difficulty +0xF0 and the rating class at
+// +0x124. Keep the runtime validation wide enough to cover both fields.
+inline constexpr uintptr_t kDifficultyLockOffset = 0xF0;
+inline constexpr size_t kDifficultyObjectReadableBytes = 0x128;
 inline constexpr uintptr_t kSongRegistryOwnerRegistryOffset = 32;
 inline constexpr size_t kMaxRuntimeDifficultyPairs = 4096;
 
@@ -58,6 +64,19 @@ inline constexpr std::array<const char *, 3> kJacketFileNames = {
 inline constexpr const char *kAudioAssetName = "base.ogg";
 inline constexpr const char *kJacketAssetName = "base.jpg";
 inline constexpr const char *kJacket256AssetName = "base_256.jpg";
+
+// Logical AAsset path used by PST/PRS/FTR and by the custom Beyond hook
+// that replaces sub_A74680's writable-dir {id}_{n} pack name.
+inline std::string LocalChartAssetPath(std::string_view song_id, size_t difficulty) {
+    std::string path;
+    path.reserve(kSongsPrefix.size() + song_id.size() + 8);
+    path.append(kSongsPrefix);
+    path.append(song_id);
+    path.push_back('/');
+    path.append(std::to_string(difficulty));
+    path.append(".aff");
+    return path;
+}
 inline constexpr const char *kExtractedAudioStem = "/base";
 inline constexpr const char *kExtractedJacketStem = "/jacket";
 inline constexpr const char *kExtractedBackgroundStem = "/bg";
@@ -82,6 +101,30 @@ inline constexpr std::array<uint8_t, 16> kSigCxaThrow = {
 inline constexpr std::array<uint8_t, 16> kSigSonglistDifficultyFilter = {
     0xFF, 0x83, 0x03, 0xD1, 0xFD, 0x7B, 0x08, 0xA9,
     0xFC, 0x6F, 0x09, 0xA9, 0xFA, 0x67, 0x0A, 0xA9,
+};
+
+inline constexpr std::array<uint8_t, 16> kSigDifficultyAvailability = {
+    0xFF, 0x83, 0x01, 0xD1, 0xFD, 0x7B, 0x02, 0xA9,
+    0xF8, 0x5F, 0x03, 0xA9, 0xF6, 0x57, 0x04, 0xA9,
+};
+
+inline constexpr std::array<uint8_t, 16> kSigSongUnlockMaskCheck = {
+    0xFF, 0xC3, 0x01, 0xD1, 0xFD, 0x7B, 0x04, 0xA9,
+    0xF6, 0x57, 0x05, 0xA9, 0xF4, 0x4F, 0x06, 0xA9,
+};
+
+// IDA: sub_B87620 / sub_C987A8 treat a 1 from sub_121E9FC as "remote
+// download present". Beyond (class 3) then selects img/download.png.
+inline constexpr std::array<uint8_t, 16> kSigContentAvailability = {
+    0xFD, 0x7B, 0xBD, 0xA9, 0xF6, 0x57, 0x01, 0xA9,
+    0xF4, 0x4F, 0x02, 0xA9, 0xFD, 0x03, 0x00, 0x91,
+};
+
+// IDA: sub_A74680. PST/PRS/FTR build songs/{id}/{n}.aff; Beyond (class 3)
+// or song+0x1C0 builds writablePath + {id}_{n} (a download pack, not AAsset).
+inline constexpr std::array<uint8_t, 16> kSigChartPath = {
+    0xFF, 0x83, 0x03, 0xD1, 0xFD, 0x7B, 0x0B, 0xA9,
+    0xF6, 0x57, 0x0C, 0xA9, 0xF4, 0x4F, 0x0D, 0xA9,
 };
 
 inline constexpr std::array<uint8_t, 16> kSigFindSongById = {

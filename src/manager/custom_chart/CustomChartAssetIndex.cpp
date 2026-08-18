@@ -53,6 +53,7 @@ bool Add(std::unordered_map<std::string, std::string> &assets,
 } // namespace
 
 bool CustomChartAssetIndex::RegisterSong(const ImportedSong &song) {
+    if (song.id.empty() || song_ids_.contains(song.id)) return false;
     const std::string root = std::string(cfg::custom_charts::kSongsPrefix) + song.id + "/";
     if (!Add(assets_, root + cfg::custom_charts::kAudioAssetName, song.audio_path)) return false;
     if (!Add(assets_, root + cfg::custom_charts::kJacketAssetName, song.jacket_path)) return false;
@@ -70,11 +71,18 @@ bool CustomChartAssetIndex::RegisterSong(const ImportedSong &song) {
     }
     for (size_t slot = 0; slot < cfg::custom_charts::kDifficultyCount; ++slot) {
         if (song.has_chart[slot] &&
-            !Add(assets_, root + std::to_string(slot) + ".aff", song.charts[slot].chart_path)) {
+            !Add(assets_,
+                 cfg::custom_charts::LocalChartAssetPath(song.id, slot),
+                 song.charts[slot].chart_path)) {
             return false;
         }
     }
+    song_ids_.emplace(song.id);
     return true;
+}
+
+bool CustomChartAssetIndex::ContainsSongId(std::string_view song_id) const {
+    return !song_id.empty() && song_ids_.contains(song_id);
 }
 
 const std::string *CustomChartAssetIndex::Resolve(std::string_view game_path) const {

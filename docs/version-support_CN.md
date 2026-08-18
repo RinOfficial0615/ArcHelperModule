@@ -31,3 +31,4 @@ Language: [English](version-support.md) | 简体中文
 - **对象布局** — `src/config/GameStructs.hpp`（版本模板化，`offsetof` + `static_assert` 编译期校验）。
 - **共享常量和字节签名** — `src/config/AutoplayConfig.h`、`src/config/NetworkBlockConfig.h` 和 `src/config/CustomChartConfig.h`。
 - **函数 / RTTI / patch 偏移** — `src/config/GameProfile.hpp`（每个支持版本一条记录）。
+- **文档化位点** — `docs/offsets/6.12.11c-offsets.md`、`docs/offsets/6.16.2c-offsets.md`。

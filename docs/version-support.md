@@ -31,3 +31,4 @@ Unknown builds stay in a "detected, not armed" state — the wrong offsets never
 - **Object layouts** — `src/config/GameStructs.hpp` (version-templated, compile-time verified via `offsetof` + `static_assert`).
 - **Shared constants & signatures** — `src/config/AutoplayConfig.h`, `src/config/NetworkBlockConfig.h`, and `src/config/CustomChartConfig.h`.
 - **Function / RTTI / patch-site offsets** — `src/config/GameProfile.hpp` (one entry per supported version).
+- **Documented sites** — `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`.

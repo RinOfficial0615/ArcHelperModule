@@ -10,6 +10,12 @@ namespace arc_helper {
 
 enum class LogLevel { Debug, Info, Warn, Error };
 
+#if defined(NDEBUG)
+inline constexpr LogLevel kBuildDefaultLogLevel = LogLevel::Info;
+#else
+inline constexpr LogLevel kBuildDefaultLogLevel = LogLevel::Debug;
+#endif
+
 struct LogSinkConfig {
     bool enabled = true;
     size_t max_length = 0;
@@ -18,6 +24,7 @@ struct LogSinkConfig {
 struct LoggerConfig {
     LogSinkConfig logcat{true, 1024};
     LogSinkConfig file{true, 0};
+    LogLevel minimum_level = kBuildDefaultLogLevel;
 };
 
 namespace log_detail {
@@ -64,7 +71,7 @@ private:
     void WriteLogcatLocked(LogLevel level, const std::string &line);
 
     std::mutex mutex_{};
-    LoggerConfig config_{{true, 1024}, {false, 0}};
+    LoggerConfig config_{{true, 1024}, {false, 0}, kBuildDefaultLogLevel};
     std::FILE *file_ = nullptr;
     std::string file_path_{};
     LogcatWriter test_logcat_writer_ = nullptr;

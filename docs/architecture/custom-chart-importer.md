@@ -16,6 +16,8 @@ flowchart LR
     I --> R[CustomChartReportWriter]
     A --> H[AssetVirtualizer hooks]
     S --> H
+    H --> G[CustomChartGameplaySession]
+    G --> N[NetworkBlock isolation]
 ```
 
 `CustomChartImporter` owns `.arcpkg` and raw ZIP parsing, bounded metadata
@@ -27,6 +29,12 @@ does not publish runtime state. The importer returns a C++23
 (`Resources/`, `assets/`, `file:///android_asset/`, and `1080` jacket aliases).
 `Resolve`, directory listing, and custom-chart detection use the same
 canonicalization function, so hook callers cannot disagree about an alias.
+
+`CustomChartGameplaySession` is the small atomic window used by NetworkBlock
+isolation. `OpenHook` starts it only after `IsCustomChartPath` accepts a mapped
+`.aff`. A later `AAsset_read` whose path ends with `base.jpg` ends it. The
+suffix match is intentional: it is cheaper than classifying jackets versus
+backgrounds, and it is enough to close the window after play.
 
 `CustomChartReportWriter` is the commit gate for the `manifest.json` and
 `import-report.json` pair. Any staging or replacement failure restores the

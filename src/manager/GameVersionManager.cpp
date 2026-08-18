@@ -21,7 +21,7 @@ inline constexpr std::array<uint8_t, 16> kSig_SetAppVersion = {
 
 void ClearPendingJniException(JNIEnv *env, const char *where) {
     if (!env || !env->ExceptionCheck()) return;
-    ARC_LOGE("GameVersionManager: JNI exception at %s", where ? where : "unknown");
+    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
     env->ExceptionClear();
 }
 
@@ -122,7 +122,7 @@ bool GameVersionManager::TryResolveFromString(const char *version_string) {
 
     const cfg::GameProfile *profile = cfg::FindGameProfileByVersionString(version_string);
     if (!profile) {
-        ARC_LOGE("GameVersionManager: unsupported appVersion '%s'", version_string);
+        ARC_LOGE("Unsupported appVersion '%s'", version_string);
         return false;
     }
 
@@ -133,7 +133,7 @@ bool GameVersionManager::TryResolveFromString(const char *version_string) {
 
     active_profile_ = profile;
     resolved_version_string_ = version_string;
-    ARC_LOGI("GameVersionManager: resolved version %s", resolved_version_string_.c_str());
+    ARC_LOGI("Resolved version %s", resolved_version_string_.c_str());
     FireResolvedCallback();
     return true;
 }
@@ -166,7 +166,7 @@ bool GameVersionManager::EnsureInstalled() {
         "Java_low_moe_AppActivity_setAppVersion");
     hook_installed_ = registration && hook_manager_.CommitInlineHook(registration);
     if (!hook_installed_) {
-        ARC_LOGE("GameVersionManager: failed to install setAppVersion hook");
+        ARC_LOGE("Failed to install setAppVersion hook");
         return false;
     }
 

@@ -34,6 +34,7 @@ git submodule update --init --recursive
 
 | 功能 | `config.json` 键 | 说明 |
 |------|-------------------|------|
+| 日志 | `Logging.level` | 写入 logcat 和文件的最低级别（`Debug`、`Info`、`Warn`、`Error`）；Debug 构建默认为 `Debug`，Release 构建默认为 `Info` |
 | 自动打歌 | `Autoplay` | 接管蛇和长条 touch，强制 Pure，精简特效 |
 | 网络日志 | `NetworkLogger` | 审计全部 HTTP 请求/响应，默认关闭 |
 | 常规网络拦截 | `NetworkBlock` | 屏蔽上传分数/世界模式等规则；自定义谱面的固定隔离规则独立生效 |
@@ -67,6 +68,4 @@ git submodule update --init --recursive
 
 - 项目结构：`docs/project-structure.md`
 - 版本支持：`docs/version-support.md`
-- 偏移参考：`docs/6.12.11c-offsets.md`
-- 6.16.2c 偏移证据：`docs/6.16.2c-offsets_CN.md`
-- 设备测试：`DEVICE_TEST_CHECKLIST_CN.md`
+- 偏移参考：`docs/offsets/6.12.11c-offsets.md`、`docs/offsets/6.16.2c-offsets.md`

@@ -80,7 +80,7 @@ bool HookManager::EnsureReady() {
     lib_base_ = GameManager::Instance().GetOrFindGameLibBase();
     if (!lib_base_) {
         if (!logged_unready_) {
-            ARC_LOGE("HookManager: %s base not ready", cfg::module::kLibName);
+            ARC_LOGE("%s base not ready", cfg::module::kLibName);
             logged_unready_ = true;
         }
         return false;
@@ -201,7 +201,7 @@ HookManager::InlineHookRegistration HookManager::RegisterInlineHookAbsoluteImpl(
     bool allow_empty_signature) {
     std::scoped_lock mutation_lock(mutation_mutex_);
     if (!RetryPendingRollbacks()) {
-        ARC_LOGE("HookManager: pending rollback still active before %s", name);
+        ARC_LOGE("Pending rollback still active before %s", name);
         return {};
     }
     if (!ValidateHookTarget(addr, sig, hook_handler, name, allow_empty_signature)) return {};
@@ -232,7 +232,7 @@ bool HookManager::CommitInlineHook(std::span<InlineHookRegistration> registratio
         if (registration.owner_ != this ||
             (registration.state_ != InlineHookRegistration::State::Pending &&
              registration.state_ != InlineHookRegistration::State::Committed)) {
-            ARC_LOGE("HookManager: invalid registration at index %zu", i);
+            ARC_LOGE("Invalid registration at index %zu", i);
             return false;
         }
         if (registration.state_ == InlineHookRegistration::State::Committed) continue;
@@ -241,7 +241,7 @@ bool HookManager::CommitInlineHook(std::span<InlineHookRegistration> registratio
             if (previous.state_ == InlineHookRegistration::State::Committed) continue;
             if (previous.target_addr_ == registration.target_addr_ ||
                 previous.hook_handler_ == registration.hook_handler_) {
-                ARC_LOGE("HookManager: duplicate registration for %s", registration.name_);
+                ARC_LOGE("Duplicate registration for %s", registration.name_);
                 return false;
             }
         }
@@ -309,7 +309,7 @@ bool HookManager::CommitInlineHook(std::span<InlineHookRegistration> registratio
                  reinterpret_cast<void *>(registration.target_addr_));
     }
 
-    ARC_LOGI("HookManager: committed %zu inline hooks", installed_count);
+    ARC_LOGI("Committed %zu inline hooks", installed_count);
     return true;
 }
 
@@ -397,7 +397,7 @@ bool HookManager::RetryPendingRollbacks() {
             ++iter;
             continue;
         }
-        ARC_LOGI("HookManager: recovered pending rollback @ %p",
+        ARC_LOGI("Recovered pending rollback @ %p",
                  reinterpret_cast<void *>(iter->target_addr));
         iter = inline_hooks_.erase(iter);
     }

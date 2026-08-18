@@ -37,7 +37,8 @@ concept ConfigScalar =
     std::same_as<std::remove_cvref_t<T>, std::string>;
 
 template <typename Validator, typename T>
-concept ConfigValidator = std::predicate<Validator, const T &>;
+concept ConfigValidator =
+    ConfigScalar<T> && std::predicate<Validator, const T &>;
 
 inline std::string NormalizeDefault(const char *value) {
     return value ? std::string(value) : std::string{};

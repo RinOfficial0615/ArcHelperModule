@@ -43,9 +43,7 @@ inline const char *HttpMethodStr(uint32_t request_type) {
 }
 
 inline uint8_t HttpMethodBit(uint32_t request_type) {
-    const auto method = magic_enum::enum_cast<HttpMethod>(request_type);
-    if (!method) return 0;
-    return static_cast<uint8_t>(1u << magic_enum::enum_integer(*method));
+    return cfg::network_block::MethodBit(request_type);
 }
 
 enum class BufferViewStatus : uint8_t {

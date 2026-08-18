@@ -177,6 +177,7 @@ void Logger::Log(LogLevel level, const char *file, int line, const char *format,
 void Logger::VLog(LogLevel level, const char *file, int line,
                   const char *format, va_list args) {
     std::scoped_lock lock(mutex_);
+    if (LevelIndex(level) < LevelIndex(config_.minimum_level)) return;
     if (!config_.logcat.enabled && (!config_.file.enabled || !file_)) return;
 
     size_t formatting_budget = 0;

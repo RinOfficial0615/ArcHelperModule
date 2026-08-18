@@ -48,6 +48,7 @@ int main(int argc, char **argv) {
     bool checked_configured_default = false;
     for (const auto &song : songs) {
         assert(song.at("id").get<std::string>().size() <= 21);
+        assert(manager.ContainsSongId(song.at("id").get<std::string>()));
         const std::string song_root = "songs/" + song.at("id").get<std::string>();
         const auto directory_entries = manager.ListAssetDirectory(song_root);
         assert(std::ranges::find(directory_entries, "base.ogg") != directory_entries.end());
@@ -69,6 +70,9 @@ int main(int argc, char **argv) {
             ("Resources/" + song_root + "/" + std::to_string(first_slot) + ".aff").c_str(),
             &custom_song_id));
         assert(custom_song_id == song.at("id").get<std::string>());
+        assert(!manager.IsCustomChartPath(
+            (song_root + "/" + std::to_string(first_slot) + ".aff.bak").c_str()));
+        assert(!manager.IsCustomChartPath((song_root + "/base.jpg").c_str()));
         const std::string title = song.at("title_localized").at("en").get<std::string>();
         checked_configured_default |= song.value("artist", "") == "Configured Artist";
         const auto &difficulties = song.at("difficulties");
@@ -76,6 +80,7 @@ int main(int argc, char **argv) {
             checked_light_side = true;
             assert(song.at("side").get<int>() == 0);
             assert(song.at("bg").get<std::string>() == "base_light");
+            assert(song.at("byd_local_unlock").get<bool>());
             assert(difficulties.size() == 1);
             assert(difficulties.at(0).at("ratingClass").get<int>() == 3);
             assert(difficulties.at(0).at("rating").get<int>() == 10);
@@ -149,6 +154,9 @@ int main(int argc, char **argv) {
     }
     // Raw ZIP 1.zip packages djmax_wagd.jpg; it must be extracted under the
     // exact 1080 background namespace used by the game.
+    assert(!manager.ContainsSongId(""));
+    assert(!manager.ContainsSongId("official"));
+    assert(!manager.ContainsSongId("ah_not_imported"));
     assert(manager.HasAssetPrefixForTesting("img/bg/1080/ahbg_"));
     assert(manager.HasAssetSuffixForTesting("_clear.png"));
     // Broken/minimal raw packages have no cover and must use the real APK

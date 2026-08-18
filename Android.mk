@@ -16,6 +16,7 @@ LOCAL_SRC_FILES := \
     src/manager/FeatureManager.cpp \
     src/manager/GameManager.cpp \
     src/manager/CustomChartManager.cpp \
+    src/manager/custom_chart/CustomChartGameplaySession.cpp \
     src/manager/custom_chart/CustomChartImporter.cpp \
     src/manager/custom_chart/CustomChartAssetIndex.cpp \
     src/manager/custom_chart/CustomChartSnapshot.cpp \

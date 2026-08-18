@@ -3,8 +3,13 @@
 #include <fstream>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include <nlohmann/json.hpp>
+
+#include "features/Logging.hpp"
+#include "manager/ConfigManager.hpp"
 #include "utils/Log.h"
 
 namespace {
@@ -15,7 +20,7 @@ void CaptureLogcat(int, const char *line) {
     g_logcat_lines.emplace_back(line ? line : "");
 }
 
-bool IsValidUtf8(const std::string &text) {
+[[maybe_unused]] bool IsValidUtf8(const std::string &text) {
     for (size_t i = 0; i < text.size();) {
         const unsigned char lead = static_cast<unsigned char>(text[i]);
         size_t length = 1;
@@ -38,6 +43,16 @@ std::string ReadAll(const std::filesystem::path &path) {
     return std::string(std::istreambuf_iterator<char>(input), {});
 }
 
+nlohmann::json ReadJson(const std::filesystem::path &path) {
+    std::ifstream input(path, std::ios::binary);
+    return nlohmann::json::parse(input);
+}
+
+void WriteText(const std::filesystem::path &path, std::string_view text) {
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    output << text;
+}
+
 } // namespace
 
 static_assert(std::string_view(arc_helper::log_detail::BaseName("a/b/c.cpp")) == "c.cpp");
@@ -45,6 +60,13 @@ static_assert(std::string_view(arc_helper::log_detail::BaseName("a\\b\\c.cpp")) 
 
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
+    static_assert(arc_helper::kBuildDefaultLogLevel ==
+#ifdef NDEBUG
+                  arc_helper::LogLevel::Info
+#else
+                  arc_helper::LogLevel::Debug
+#endif
+    );
     const std::filesystem::path root(argv[1]);
     std::filesystem::remove_all(root);
     std::filesystem::create_directories(root / "logs");
@@ -91,28 +113,71 @@ int main(int argc, char **argv) {
     assert(file_text.find("[INFO] [sample.cpp:12] " + long_message) != std::string::npos);
     assert(file_text.size() > g_logcat_lines[0].size());
 
-    const size_t before_macro = g_logcat_lines.size();
-    const int macro_line = __LINE__ + 1;
+    logger.Configure(root.string(), {{true, 1024}, {true, 0}, arc_helper::LogLevel::Warn});
+    [[maybe_unused]] const size_t before_threshold = g_logcat_lines.size();
+    logger.Log(arc_helper::LogLevel::Debug, "threshold.cpp", 1, "threshold-debug");
+    logger.Log(arc_helper::LogLevel::Info, "threshold.cpp", 2, "threshold-info");
+    logger.Log(arc_helper::LogLevel::Warn, "threshold.cpp", 3, "threshold-warn");
+    logger.Log(arc_helper::LogLevel::Error, "threshold.cpp", 4, "threshold-error");
+    assert(g_logcat_lines.size() == before_threshold + 2);
+    assert(g_logcat_lines[before_threshold].find("threshold-warn") != std::string::npos);
+    assert(g_logcat_lines[before_threshold + 1].find("threshold-error") != std::string::npos);
+    std::string all_threshold_files;
+    for (const auto &entry : std::filesystem::directory_iterator(root / "logs")) {
+        if (entry.path().filename().string().starts_with("ArcHelper-") &&
+            entry.path().extension() == ".log") {
+            all_threshold_files += ReadAll(entry.path());
+        }
+    }
+    assert(all_threshold_files.find("threshold-debug") == std::string::npos);
+    assert(all_threshold_files.find("threshold-info") == std::string::npos);
+    assert(all_threshold_files.find("threshold-warn") != std::string::npos);
+    assert(all_threshold_files.find("threshold-error") != std::string::npos);
+
+    [[maybe_unused]] const size_t before_macro = g_logcat_lines.size();
+    [[maybe_unused]] const int macro_line = __LINE__ + 1;
     ARC_LOGW("macro location");
     assert(g_logcat_lines.size() == before_macro + 1);
     assert(g_logcat_lines.back().find(
                "[logger_host_test.cpp:" + std::to_string(macro_line) + "] macro location") !=
            std::string::npos);
 
+    const std::filesystem::path feature_root = root / "feature-config";
+    std::filesystem::create_directories(feature_root);
+    WriteText(feature_root / "config.json", R"json({
+  "Logging": {
+    "level": "Warn",
+    "logcat": {"enabled": true, "max_length": 1024},
+    "file": {"enabled": false, "max_length": 0}
+  }
+})json");
+    auto &config_manager = arc_helper::ConfigManager::Instance();
+    config_manager.ResetForTesting(feature_root.string());
+    assert(config_manager.Load());
+    arc_helper::Logging::Instance();
+    g_logcat_lines.clear();
+    ARC_LOGI("feature-level-info");
+    ARC_LOGW("feature-level-warn");
+    assert(g_logcat_lines.size() == 1);
+    assert(g_logcat_lines.front().find("feature-level-warn") != std::string::npos);
+    assert(config_manager.Save());
+    const auto feature_config = ReadJson(feature_root / "config.json");
+    assert(feature_config["Logging"]["level"] == "Warn");
+
     logger.Configure(root.string(), {{false, 1024}, {true, 0}});
-    const size_t before_file_only = g_logcat_lines.size();
+    [[maybe_unused]] const size_t before_file_only = g_logcat_lines.size();
     ARC_LOGI("file only");
     assert(g_logcat_lines.size() == before_file_only);
 
     logger.Configure(root.string(), {{false, 1024}, {false, 0}});
-    const size_t before_disabled = g_logcat_lines.size();
+    [[maybe_unused]] const size_t before_disabled = g_logcat_lines.size();
     ARC_LOGE("disabled sinks");
     assert(g_logcat_lines.size() == before_disabled);
 
     const std::filesystem::path invalid_root = root / "not-a-directory";
     std::ofstream(invalid_root) << "file";
     logger.Configure(invalid_root.string(), {{false, 1024}, {true, 0}});
-    const size_t before_fallback = g_logcat_lines.size();
+    [[maybe_unused]] const size_t before_fallback = g_logcat_lines.size();
     ARC_LOGE("file fallback");
     assert(g_logcat_lines.size() == before_fallback + 1);
     assert(g_logcat_lines.back().find("file fallback") != std::string::npos);

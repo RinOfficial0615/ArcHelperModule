@@ -39,7 +39,7 @@ void NetworkLogger::Install(const cfg::GameProfile &profile) {
         "NetworkLogger", cfg::network_block::kHandlerPriorityNetworkLogger,
         HandleNetworkRequest);
     installed_ = ok;
-    ARC_LOGI("NetworkLogger: handler registration %s", ok ? "OK" : "FAILED");
+    ARC_LOGI("Handler registration %s", ok ? "OK" : "FAILED");
 }
 
 bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
@@ -50,7 +50,7 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
     const std::string url = UrlForLog(args.url, feature.strip_query_);
     if (args.phase == NetworkManager::Phase::BeforeRequest) {
         if (feature.log_all_requests_) {
-            ARC_LOGI("NetworkLogger: URL #%u %s %s (body=%zu)",
+            ARC_LOGI("URL #%u %s %s (body=%zu)",
                      args.sequence, args.MethodStr(), url.c_str(), args.request_body_len);
         }
         if (!feature.log_request_body_ || args.request_body_len == 0 ||
@@ -62,18 +62,18 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
         switch (body.status) {
         case NetworkManager::BufferViewStatus::Ok: {
             const auto escaped = NetworkManager::EscapeBytesForLog(body.data, body.show_len);
-            ARC_LOGI("NetworkLogger: BODY #%u %s %s (len=%zu shown=%zu trunc=%u) body=%s",
+            ARC_LOGI("BODY #%u %s %s (len=%zu shown=%zu trunc=%u) body=%s",
                      args.sequence, args.MethodStr(), url.c_str(), body.full_len,
                      body.show_len, static_cast<unsigned int>(body.Truncated()),
                      escaped.c_str());
             break;
         }
         case NetworkManager::BufferViewStatus::NullPtr:
-            ARC_LOGI("NetworkLogger: BODY #%u %s %s (ptr=null, len=%zu)",
+            ARC_LOGI("BODY #%u %s %s (ptr=null, len=%zu)",
                      args.sequence, args.MethodStr(), url.c_str(), args.request_body_len);
             break;
         case NetworkManager::BufferViewStatus::Unreadable:
-            ARC_LOGI("NetworkLogger: BODY #%u %s %s (unreadable, len=%zu)",
+            ARC_LOGI("BODY #%u %s %s (unreadable, len=%zu)",
                      args.sequence, args.MethodStr(), url.c_str(), args.request_body_len);
             break;
         default:
@@ -86,7 +86,7 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
         return false;
     }
     if (args.CurlError()[0] != '\0') {
-        ARC_LOGI("NetworkLogger: ERR  #%u %s %s err=%s",
+        ARC_LOGI("ERR  #%u %s %s err=%s",
                  args.sequence, args.MethodStr(), url.c_str(), args.CurlError());
     }
 
@@ -94,7 +94,7 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
     switch (response.status) {
     case NetworkManager::BufferViewStatus::Ok: {
         const auto escaped = NetworkManager::EscapeBytesForLog(response.data, response.show_len);
-        ARC_LOGI("NetworkLogger: RESP #%u %s %s (code=%lld ok=%u len=%zu shown=%zu trunc=%u) resp=%s",
+        ARC_LOGI("RESP #%u %s %s (code=%lld ok=%u len=%zu shown=%zu trunc=%u) resp=%s",
                  args.sequence, args.MethodStr(), url.c_str(),
                  static_cast<long long>(args.response_status_code),
                  static_cast<unsigned int>(args.response_ok), response.full_len,
@@ -103,19 +103,19 @@ bool NetworkLogger::HandleNetworkRequest(NetworkManager::HandlerArgs &args) {
         break;
     }
     case NetworkManager::BufferViewStatus::NullPtr:
-        ARC_LOGI("NetworkLogger: RESP #%u %s %s (code=%lld ok=%u) (no body vec)",
+        ARC_LOGI("RESP #%u %s %s (code=%lld ok=%u) (no body vec)",
                  args.sequence, args.MethodStr(), url.c_str(),
                  static_cast<long long>(args.response_status_code),
                  static_cast<unsigned int>(args.response_ok));
         break;
     case NetworkManager::BufferViewStatus::InvalidVector:
-        ARC_LOGI("NetworkLogger: RESP #%u %s %s (code=%lld ok=%u) (bad body vector)",
+        ARC_LOGI("RESP #%u %s %s (code=%lld ok=%u) (bad body vector)",
                  args.sequence, args.MethodStr(), url.c_str(),
                  static_cast<long long>(args.response_status_code),
                  static_cast<unsigned int>(args.response_ok));
         break;
     case NetworkManager::BufferViewStatus::Unreadable:
-        ARC_LOGI("NetworkLogger: RESP #%u %s %s (code=%lld ok=%u) (unreadable body)",
+        ARC_LOGI("RESP #%u %s %s (code=%lld ok=%u) (unreadable body)",
                  args.sequence, args.MethodStr(), url.c_str(),
                  static_cast<long long>(args.response_status_code),
                  static_cast<unsigned int>(args.response_ok));

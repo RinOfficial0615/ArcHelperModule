@@ -19,7 +19,7 @@ void Autoplay::Install(const cfg::GameProfile &profile) {
         return;
     }
     if (!profile.capabilities.autoplay) {
-        ARC_LOGE("Autoplay: capability unavailable for %s", profile.version_name);
+        ARC_LOGE("Capability unavailable for %s", profile.version_name);
         return;
     }
     auto &hook_manager = HookManager::Instance();
@@ -432,7 +432,7 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
     if (std::ranges::any_of(registrations, [](const auto &registration) {
             return !registration;
         })) {
-        ARC_LOGE("Autoplay: inline hook registration failed");
+        ARC_LOGE("Inline hook registration failed");
         return;
     }
 
@@ -440,7 +440,7 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
                                        offsets.logic_color_accepts_touch,
                                        cfg::autoplay::kSig_LogicColor_acceptsTouch,
                                        "LogicColor_acceptsTouch")) {
-        ARC_LOGE("Autoplay: failed to resolve LogicColor_acceptsTouch");
+        ARC_LOGE("Failed to resolve LogicColor_acceptsTouch");
         return;
     }
 
@@ -459,7 +459,7 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
         const auto current_c = mem::RuntimeMemory::Process().Read<uint32_t>(pc8);
         if (!current_a || !current_b || !current_c || *current_a != 0x11019148u ||
             *current_b != 0x11019148u || *current_c != 0x11032148u) {
-            ARC_LOGE("Autoplay: logic-note patch signature mismatch");
+            ARC_LOGE("Logic-note patch signature mismatch");
             return;
         }
 
@@ -483,7 +483,7 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
         if (auto read = mem::RuntimeMemory::Process().ReadBytes(
                 addr_logic_color_accepts_touch_, std::span<std::byte>(expected_color));
             !read) {
-            ARC_LOGE("Autoplay: failed to read LogicColor_acceptsTouch");
+            ARC_LOGE("Failed to read LogicColor_acceptsTouch");
             return;
         }
         constexpr std::array<uint32_t, 2> color_replacement{0x52800020u, 0xD65F03C0u};
@@ -500,20 +500,20 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
         }};
         if (!patch_transaction_.Apply(patches)) {
             if (patch_transaction_.IsDegraded() && !patch_transaction_.Rollback()) {
-                ARC_LOGE("Autoplay: degraded patch rollback failed");
+                ARC_LOGE("Degraded patch rollback failed");
             }
-            ARC_LOGE("Autoplay: patch transaction failed");
+            ARC_LOGE("Patch transaction failed");
             return;
         }
         patched_logicnote_miss_offsets_ = true;
         patched_logiccolor_accepts_touch_ = true;
-        ARC_LOGI("Autoplay: logic-note and touch patches committed");
+        ARC_LOGI("Logic-note and touch patches committed");
     }
 
     if (!patched_logicnote_miss_offsets_ || !patched_logiccolor_accepts_touch_ ||
         !note_effect_on_judgement_ ||
         !hook_manager_->CommitInlineHook(std::span<HookManager::InlineHookRegistration>(registrations))) {
-        ARC_LOGE("Autoplay: setup transaction failed");
+        ARC_LOGE("Setup transaction failed");
         if (patch_transaction_.IsApplied()) {
             (void)patch_transaction_.Rollback();
             patched_logicnote_miss_offsets_ = false;

@@ -101,6 +101,7 @@ compile_cmd = [
     "-static",
     "-static-libgcc",
     "-static-libstdc++",
+    "-DARC_HELPER_HOST_TEST",
     "-I",
     str(ROOT / "tests" / "stubs"),
     "-I",
@@ -111,6 +112,7 @@ compile_cmd = [
     str(ROOT / "third_party" / "json" / "include"),
     str(ROOT / "tests" / "host_tests.cpp"),
     str(ROOT / "src" / "manager" / "network" / "NetworkHandlerSnapshot.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartGameplaySession.cpp"),
     str(ROOT / "src" / "utils" / "Sha256.cpp"),
     str(ROOT / "src" / "utils" / "ZipArchive.cpp"),
     str(ROOT / "src" / "utils" / "Log.cpp"),
@@ -119,6 +121,32 @@ compile_cmd = [
     str(exe),
 ]
 subprocess.run(compile_cmd, check=True, cwd=ROOT)
+
+network_block_exe = BUILD / "network_block_host_test.exe"
+network_block_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    "-I",
+    str(MAGIC_ENUM_INCLUDE),
+    str(ROOT / "tests" / "network_block_host_test.cpp"),
+    "-o",
+    str(network_block_exe),
+]
+subprocess.run(network_block_compile, check=True, cwd=ROOT)
+subprocess.run([str(network_block_exe)], check=True, cwd=ROOT)
+print("validated ordinary block matching and custom-chart isolation policy")
 
 config_manager_exe = BUILD / "config_manager_host_test.exe"
 config_manager_compile = [
@@ -173,7 +201,11 @@ logger_compile = [
     str(ROOT / "src"),
     "-I",
     str(MAGIC_ENUM_INCLUDE),
+    "-I",
+    str(ROOT / "third_party" / "json" / "include"),
     str(ROOT / "tests" / "logger_host_test.cpp"),
+    str(ROOT / "src" / "features" / "Logging.cpp"),
+    str(ROOT / "src" / "manager" / "ConfigManager.cpp"),
     str(ROOT / "src" / "utils" / "Log.cpp"),
     "-o",
     str(logger_exe),

@@ -32,6 +32,7 @@ Artifact: `build/ArcHelperModule.zip`
 
 | Feature | `config.json` key | Purpose |
 |---------|-------------------|---------|
+| Logging | `Logging.level` | Minimum level written to logcat and files (`Debug`, `Info`, `Warn`, `Error`); defaults to `Debug` in debug builds and `Info` in release builds |
 | Autoplay | `Autoplay` | Drive arcs & holds, force Pure, suppress effects |
 | Network logging | `NetworkLogger` | Audit HTTP request / response traffic (off by default) |
 | Ordinary network block | `NetworkBlock` | Apply score/world-mode URL rules; mandatory custom-chart isolation remains independent |
@@ -66,6 +67,4 @@ This project was developed with AI assistance.
 
 - Project structure: `docs/project-structure.md`
 - Version support: `docs/version-support.md`
-- Offsets reference: `docs/6.12.11c-offsets.md`
-- 6.16.2c offset evidence: `docs/6.16.2c-offsets_CN.md`
-- Device checklist: `DEVICE_TEST_CHECKLIST_CN.md`
+- Offsets reference: `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`

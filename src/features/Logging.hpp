@@ -14,6 +14,7 @@ private:
 
     LogSinkConfig logcat_{};
     LogSinkConfig file_{};
+    LogLevel minimum_level_ = kBuildDefaultLogLevel;
 };
 
 } // namespace arc_helper

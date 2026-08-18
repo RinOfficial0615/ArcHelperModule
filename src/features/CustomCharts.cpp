@@ -1,7 +1,5 @@
 #include "features/CustomCharts.hpp"
 
-#include <climits>
-
 #include "features/AssetVirtualizer.hpp"
 #include "manager/ConfigManager.hpp"
 #include "manager/CustomChartManager.hpp"
@@ -24,15 +22,17 @@ void CustomCharts::Install(const cfg::GameProfile &profile) {
     if (hooks_installed_) return;
 
     if (!Enabled() || !profile.capabilities.custom_charts) {
-        ARC_LOGI("CustomCharts: disabled or unavailable for %s", profile.version_name);
+        ARC_LOGI("Disabled or unavailable for %s", profile.version_name);
         return;
     }
 
     int64_t preview_duration = default_preview_duration_ms_;
-    if (default_preview_start_ms_ > INT32_MAX - preview_duration) {
-        preview_duration = 30000;
-        if (default_preview_start_ms_ > INT32_MAX - preview_duration) {
-            ARC_LOGE("CustomCharts: preview range overflow; feature disabled");
+    if (default_preview_start_ms_ >
+        cfg::custom_charts::kMaximumPreviewEndMs - preview_duration) {
+        preview_duration = cfg::custom_charts::kDefaultPreviewDurationMs;
+        if (default_preview_start_ms_ >
+            cfg::custom_charts::kMaximumPreviewEndMs - preview_duration) {
+            ARC_LOGE("Preview range overflow; feature disabled");
             return;
         }
     }
@@ -58,12 +58,12 @@ void CustomCharts::Install(const cfg::GameProfile &profile) {
 
     auto &manager = CustomChartManager::Instance();
     if (!manager.EnsureImported(settings) || !manager.HasSongs()) {
-        ARC_LOGI("CustomCharts: no importable songs");
+        ARC_LOGI("No importable songs");
         return;
     }
 
     hooks_installed_ = AssetVirtualizer::Instance().Install(profile);
-    ARC_LOGI("CustomCharts: songs=%zu assets=%zu hooks=%s",
+    ARC_LOGI("songs=%zu assets=%zu hooks=%s",
              manager.SongCount(), manager.AssetCount(),
              hooks_installed_ ? "OK" : "FAILED");
 }

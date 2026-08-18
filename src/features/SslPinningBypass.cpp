@@ -44,13 +44,13 @@ void SslPinningBypass::Install(const cfg::GameProfile &profile) {
     const auto &pins = profile.ssl_pins;
     if (!pins.skip_cbz || !pins.tail_call || !pins.expected_skip_cbz ||
         !pins.expected_tail_call) {
-        ARC_LOGE("SslPinningBypass: no patch offsets for this version");
+        ARC_LOGE("No patch offsets for this version");
         return;
     }
 
     if (pins.skip_cbz > UINTPTR_MAX - lib_base_ ||
         pins.tail_call > UINTPTR_MAX - lib_base_) {
-        ARC_LOGE("SslPinningBypass: patch address overflow");
+        ARC_LOGE("Patch address overflow");
         return;
     }
 
@@ -58,20 +58,20 @@ void SslPinningBypass::Install(const cfg::GameProfile &profile) {
     const uintptr_t addr_b = lib_base_ + pins.tail_call;
 
     if (!mem::ProcMaps::IsReadable(addr_a, 4) || !mem::ProcMaps::IsReadable(addr_b, 4)) {
-        ARC_LOGE("SslPinningBypass: patch addresses not readable");
+        ARC_LOGE("Patch addresses not readable");
         return;
     }
 
     const auto current_a = mem::RuntimeMemory::Process().Read<uint32_t>(addr_a);
     const auto current_b = mem::RuntimeMemory::Process().Read<uint32_t>(addr_b);
     if (!current_a || !current_b) {
-        ARC_LOGE("SslPinningBypass: failed to read patch instructions");
+        ARC_LOGE("Failed to read patch instructions");
         return;
     }
 
     if (*current_a != pins.expected_skip_cbz || *current_b != pins.expected_tail_call ||
         !IsCbzRegister20(*current_a) || !IsBranchWithLink(*current_b)) {
-        ARC_LOGE("SslPinningBypass: instruction signature mismatch");
+        ARC_LOGE("Instruction signature mismatch");
         return;
     }
 
@@ -91,14 +91,14 @@ void SslPinningBypass::Install(const cfg::GameProfile &profile) {
     }};
     if (!patch_transaction_.Apply(patches)) {
         if (patch_transaction_.IsDegraded() && !patch_transaction_.Rollback()) {
-            ARC_LOGE("SslPinningBypass: degraded patch rollback failed");
+            ARC_LOGE("Degraded patch rollback failed");
         }
-        ARC_LOGE("SslPinningBypass: patch transaction failed");
+        ARC_LOGE("Patch transaction failed");
         return;
     }
 
     patched_ = true;
-    ARC_LOGI("SslPinningBypass: patched @ %p / %p",
+    ARC_LOGI("Patched @ %p / %p",
              reinterpret_cast<void *>(addr_a),
              reinterpret_cast<void *>(addr_b));
 }

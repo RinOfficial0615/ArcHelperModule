@@ -1,5 +1,6 @@
 {
   "Logging": {
+    "level": "Debug",
     "logcat": {
       "enabled": true,
       "max_length": 1024

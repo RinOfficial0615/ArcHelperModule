@@ -27,6 +27,14 @@ expected = {
     # Song-list builder. It filters candidate songs by the exact current
     # difficulty and stores each result as a 16-byte (song, difficulty) pair.
     0x12638FC: "ff8303d1fd7b08a9fc6f09a9fa670aa9",
+    # Final difficulty availability predicate used by song cells and selection.
+    0xE162C8: "ff8301d1fd7b02a9f85f03a9f65704a9",
+    # Song-level unlock mask predicate shared by song cells and play entry.
+    0xD988F4: "ffc301d1fd7b04a9f65705a9f44f06a9",
+    # Remote-pack predicate. 1 + Beyond (class 3) selects img/download.png.
+    0x121E9FC: "fd7bbda9f65701a9f44f02a9fd030091",
+    # Chart path. Beyond/remote uses writable {id}_{n} pack, not songs/{id}/n.aff.
+    0xA74680: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
     # Runtime song registry lookup used to recover the parsed custom-song
     # object after the official unlock filter omits unknown server IDs.
     0xCADFA4: "fd7bbea9f30b00f9fd030091f30300aa",

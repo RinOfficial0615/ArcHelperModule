@@ -120,7 +120,7 @@ void RetryInitAfterGameLibraryLoad() {
             if (base) {
                 arc_helper::wrapper::InitFeatures();
                 if (arc_helper::GameVersionManager::Instance().IsResolved()) {
-                    ARC_LOGI("JNI wrapper: delayed init resolved %s @ %p",
+                    ARC_LOGI("Delayed init resolved %s @ %p",
                              arc_helper::cfg::module::kLibName, reinterpret_cast<void *>(base));
                     g_jni_wrapper_inited.store(true, std::memory_order_release);
                     return;
@@ -128,7 +128,7 @@ void RetryInitAfterGameLibraryLoad() {
             }
             usleep(250000);
         }
-        ARC_LOGE("JNI wrapper: timed out waiting for %s", arc_helper::cfg::module::kLibName);
+        ARC_LOGE("Timed out waiting for %s", arc_helper::cfg::module::kLibName);
     }).detach();
 }
 

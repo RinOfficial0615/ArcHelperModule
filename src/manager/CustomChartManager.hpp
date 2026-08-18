@@ -21,6 +21,7 @@ public:
 
     std::string MergeSonglist(std::string_view official_json, std::string &error) const;
     const std::string *ResolveAsset(std::string_view game_path) const;
+    bool ContainsSongId(std::string_view song_id) const;
     std::vector<std::string> ListAssetDirectory(std::string_view game_path) const;
     std::vector<std::string> ListSongIdsForDifficulty(int difficulty) const;
     bool IsCustomChartPath(std::string_view game_path, std::string *song_id = nullptr) const;

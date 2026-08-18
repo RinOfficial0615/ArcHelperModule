@@ -15,14 +15,14 @@ CustomChartManager &CustomChartManager::Instance() {
 bool CustomChartManager::EnsureImported(const CustomChartSettings &settings) {
     if (imported_) return true;
     if (settings.root_dir.empty() || settings.charts_dir.empty() || settings.cache_dir.empty()) {
-        ARC_LOGE("CustomCharts: importer paths unavailable");
+        ARC_LOGE("Importer paths unavailable");
         return false;
     }
 
     CustomChartImporter importer(settings);
     auto result = importer.Import();
     if (!result) {
-        ARC_LOGE("CustomCharts: importer failed: %s", result.error().c_str());
+        ARC_LOGE("Importer failed: %s", result.error().c_str());
         return false;
     }
 
@@ -30,7 +30,7 @@ bool CustomChartManager::EnsureImported(const CustomChartSettings &settings) {
     // failed retry therefore cannot expose a half-built snapshot.
     snapshot_ = std::move(*result);
     imported_ = true;
-    ARC_LOGI("CustomCharts: songs=%zu assets=%zu state=READY",
+    ARC_LOGI("songs=%zu assets=%zu state=READY",
              snapshot_.SongCount(), snapshot_.AssetCount());
     return true;
 }
@@ -42,6 +42,10 @@ std::string CustomChartManager::MergeSonglist(std::string_view official_json,
 
 const std::string *CustomChartManager::ResolveAsset(std::string_view game_path) const {
     return snapshot_.assets.Resolve(game_path);
+}
+
+bool CustomChartManager::ContainsSongId(std::string_view song_id) const {
+    return snapshot_.assets.ContainsSongId(song_id);
 }
 
 std::vector<std::string> CustomChartManager::ListAssetDirectory(std::string_view game_path) const {

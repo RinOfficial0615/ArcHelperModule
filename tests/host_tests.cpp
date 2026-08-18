@@ -5,7 +5,10 @@
 
 #include <nlohmann/json.hpp>
 
+#include "config/CustomChartConfig.h"
+#include "config/GameProfile.hpp"
 #include "manager/network/NetworkHandler.hpp"
+#include "manager/custom_chart/CustomChartGameplaySession.hpp"
 #include "utils/Sha256.hpp"
 #include "utils/ZipArchive.hpp"
 
@@ -34,6 +37,46 @@ int main(int argc, char **argv) {
     assert(network::HttpMethodBit(0) == cfg::network_block::kMethodGet);
     assert(network::HttpMethodBit(3) == cfg::network_block::kMethodDelete);
     assert(network::HttpMethodBit(99) == 0);
+
+    {
+        assert(cfg::FindGameProfileByVersionString(nullptr) == nullptr);
+        assert(cfg::FindGameProfileByVersionString("") == nullptr);
+        assert(cfg::FindGameProfileByVersionString("9.9.9") == nullptr);
+        assert(cfg::FindGameProfileByVersionString("6.16.2") == nullptr);
+        const auto *profile_616 = cfg::FindGameProfileByVersionString("6.16.2c");
+        assert(profile_616 != nullptr);
+        assert(std::string_view(profile_616->version_name) == "6.16.2c");
+        assert(profile_616->capabilities.custom_charts);
+        assert(cfg::FindGameProfileByVersionString("6.12.11c") != nullptr);
+        assert(cfg::FindGameProfileByVersionString("6.13.2f") != nullptr);
+        assert(cfg::FindGameProfileByVersionString("6.14.0c") != nullptr);
+    }
+
+    {
+        auto &session = CustomChartGameplaySession::Instance();
+        session.ResetForTesting();
+        assert(!session.IsActive());
+        session.OnAssetRead("assets/background/base.jpg");
+        assert(!session.IsActive());
+        assert(cfg::custom_charts::LocalChartAssetPath("ah_lostrequi_422e6e2f", 3) ==
+               "songs/ah_lostrequi_422e6e2f/3.aff");
+        assert(cfg::custom_charts::LocalChartAssetPath("ah_demo", 2) == "songs/ah_demo/2.aff");
+        session.OnCustomChartMapped("songs/ah_demo/3.aff");
+        const auto started = session.Read();
+        assert(started.active);
+        session.OnAssetRead("songs/ah_demo/jacket.jpg");
+        assert(session.IsActive());
+        session.OnAssetRead("assets/background/base.png");
+        assert(session.IsActive());
+        session.OnAssetRead("assets/background/suffixbase.jpg");
+        assert(!session.IsActive());
+        assert(session.Read().generation == started.generation);
+        session.OnCustomChartMapped("file:///android_asset/songs/ah_demo/3.aff");
+        assert(session.IsActive());
+        assert(session.Read().generation != started.generation);
+        session.OnAssetRead("songs/ah_demo/base.jpg");
+        assert(!session.IsActive());
+    }
 
     {
         const auto empty = network::HandlerSnapshot::Empty();

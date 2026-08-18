@@ -353,7 +353,7 @@ bool NetworkManager::EnsureHooksInstalled() {
     if (!profile) return false;
     if (!profile->capabilities.network || !profile->network.httpclient_process_request ||
         !profile->network.curl_easy_setopt) {
-        ARC_LOGE("NetworkManager: capability unavailable for %s", profile->version_name);
+        ARC_LOGE("Capability unavailable for %s", profile->version_name);
         return false;
     }
 
@@ -382,7 +382,7 @@ bool NetworkManager::EnsureHooksInstalled() {
                                std::span<HookManager::InlineHookRegistration>(registrations));
     hooks_installed_.store(installed, std::memory_order_release);
     if (!installed) {
-        ARC_LOGE("NetworkManager: hook installation incomplete");
+        ARC_LOGE("Hook installation incomplete");
     }
     return hooks_installed_;
 }

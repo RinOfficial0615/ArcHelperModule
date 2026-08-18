@@ -8,12 +8,12 @@ namespace arc_helper {
 
 // Registers the lowest-priority block policy handler in NetworkManager.
 //
-// This feature does not install hooks directly; it only decides whether a
-// request should be blocked based on configured URL/method rules.
+// Ordinary rules follow config. Custom-chart isolation is a separate policy
+// that only reads CustomChartGameplaySession and does not depend on `enabled`.
 class NetworkBlock : public Feature {
 public:
     static NetworkBlock &Instance();
-    void Install(const cfg::GameProfile &profile, bool force_isolation);
+    void Install(const cfg::GameProfile &profile, bool isolation_armed);
 
 private:
     NetworkBlock();
@@ -21,7 +21,7 @@ private:
     static bool HandleNetworkRequest(NetworkManager::HandlerArgs &args);
 
     bool installed_ = false;
-    bool isolation_enabled_ = false;
+    bool isolation_armed_ = false;
     AH_CFG(enabled, true);
     AH_CFG(block_all_requests, false);
     AH_CFG(block_all_non_get, false);
