@@ -176,6 +176,40 @@ template <GameVersionId Ver>
 struct HttpResponse : impl::HttpResponseBase {};
 
 // ---------------------------------------------------------------------------
+//  Song / difficulty / registry owner  (custom-chart runtime, 6.16.2c)
+// ---------------------------------------------------------------------------
+inline constexpr size_t kSongDifficultySlotCount = 5;
+
+namespace impl {
+struct SongBase {
+    uint8_t   pad_00[0x228];
+    uintptr_t difficulty_pointers[kSongDifficultySlotCount]; // +0x228
+    uint8_t   difficulty_presence[kSongDifficultySlotCount]; // +0x250
+};
+
+struct SongDifficultyBase {
+    uint8_t  pad_00[0xF0];
+    uint8_t  lock;                      // +0xF0  local unlock / lock flag
+    uint8_t  pad_F1[0x33];
+    int32_t  rating_class;              // +0x124
+};
+
+struct SongRegistryOwnerBase {
+    uint8_t   pad_00[0x20];
+    uintptr_t registry;                 // +0x20
+};
+} // namespace impl
+
+template <GameVersionId Ver>
+struct Song : impl::SongBase {};
+
+template <GameVersionId Ver>
+struct SongDifficulty : impl::SongDifficultyBase {};
+
+template <GameVersionId Ver>
+struct SongRegistryOwner : impl::SongRegistryOwnerBase {};
+
+// ---------------------------------------------------------------------------
 //  Compile-time verification of every documented field offset.
 // ---------------------------------------------------------------------------
 namespace verify {
@@ -238,6 +272,16 @@ static_assert(offsetof(TouchLike<V::k6162c>, ndcX) == 28);
 static_assert(offsetof(HttpRequest<V::k6162c>, type) == 12);
 static_assert(offsetof(HttpResponse<V::k6162c>, request) == 16);
 static_assert(offsetof(HttpResponse<V::k6162c>, statusCode) == 80);
+
+static_assert(offsetof(Song<V::k6162c>, difficulty_pointers) == 0x228);
+static_assert(offsetof(Song<V::k6162c>, difficulty_presence) == 0x250);
+static_assert(offsetof(Song<V::k6162c>, difficulty_presence) ==
+              offsetof(Song<V::k6162c>, difficulty_pointers) +
+                  kSongDifficultySlotCount * sizeof(uintptr_t));
+static_assert(offsetof(SongDifficulty<V::k6162c>, lock) == 0xF0);
+static_assert(offsetof(SongDifficulty<V::k6162c>, rating_class) == 0x124);
+static_assert(sizeof(SongDifficulty<V::k6162c>) == 0x128);
+static_assert(offsetof(SongRegistryOwner<V::k6162c>, registry) == 32);
 
 } // namespace verify
 

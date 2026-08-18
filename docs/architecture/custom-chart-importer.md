@@ -32,9 +32,8 @@ canonicalization function, so hook callers cannot disagree about an alias.
 
 `CustomChartGameplaySession` is the small atomic window used by NetworkBlock
 isolation. `OpenHook` starts it only after `IsCustomChartPath` accepts a mapped
-`.aff`. A later `AAsset_read` whose path ends with `base.jpg` ends it. The
-suffix match is intentional: it is cheaper than classifying jackets versus
-backgrounds, and it is enough to close the window after play.
+`.aff`. A later `AAsset_read` whose path ends with `kJacketAssetName`
+(`base.jpg`) ends it.
 
 `CustomChartReportWriter` is the commit gate for the `manifest.json` and
 `import-report.json` pair. Any staging or replacement failure restores the

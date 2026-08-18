@@ -183,12 +183,14 @@ if (Test-Path $LspltStageRoot) {
 }
 New-Item -ItemType Directory -Path $LspltStageRoot -Force | Out-Null
 Copy-Item -LiteralPath $LspltSourceDir -Destination $LspltStageRoot -Recurse -Force
-& git -C $PSScriptRoot apply --check --directory=build/generated/lsplt $LspltPatch
+# The disposable copy keeps the submodule's LF blobs. Disable autocrlf and
+# ignore whitespace so a CRLF-checked-out patch still applies on Windows.
+& git -C $PSScriptRoot -c core.autocrlf=false apply --check --ignore-whitespace --directory=build/generated/lsplt $LspltPatch
 if ($LASTEXITCODE -ne 0) {
     Write-LogError "LSPlt compatibility patch no longer applies to the pinned submodule"
     exit 1
 }
-& git -C $PSScriptRoot apply --directory=build/generated/lsplt $LspltPatch
+& git -C $PSScriptRoot -c core.autocrlf=false apply --ignore-whitespace --directory=build/generated/lsplt $LspltPatch
 if ($LASTEXITCODE -ne 0) {
     Write-LogError "Failed to stage the LSPlt compatibility patch"
     exit 1

@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include "config/GameStructs.hpp"
+
 namespace arc_helper::cfg::custom_charts {
 
 // Bounded parser values. User-facing defaults are owned by CustomCharts.
@@ -23,7 +25,7 @@ inline constexpr int kMinimumRating = 0;
 inline constexpr int kMaximumRating = 20;
 inline constexpr int kMinimumChartConstant = 0;
 
-inline constexpr size_t kDifficultyCount = 5;
+inline constexpr size_t kDifficultyCount = layouts::kSongDifficultySlotCount;
 inline constexpr size_t kPastDifficulty = 0;
 inline constexpr size_t kPresentDifficulty = 1;
 inline constexpr size_t kFutureDifficulty = 2;
@@ -37,14 +39,19 @@ inline constexpr size_t kMaxMetadataStringBytes = 256;
 inline constexpr uint64_t kMaxVirtualAssetBytes = 128ull * 1024 * 1024;
 inline constexpr uint64_t kMaxOfficialAssetBytes = 64ull * 1024 * 1024;
 
-// Runtime song object/list layout confirmed for the supported custom-chart build.
-inline constexpr uintptr_t kDifficultyPointersOffset = 0x228;
-inline constexpr uintptr_t kDifficultyPresenceOffset = 0x250;
-// sub_9F3830 reads the lock flag at difficulty +0xF0 and the rating class at
-// +0x124. Keep the runtime validation wide enough to cover both fields.
-inline constexpr uintptr_t kDifficultyLockOffset = 0xF0;
-inline constexpr size_t kDifficultyObjectReadableBytes = 0x128;
-inline constexpr uintptr_t kSongRegistryOwnerRegistryOffset = 32;
+// Offsets computed from `layouts::*` mirror structs (see `GameStructs.hpp`).
+// Confirmed for the supported custom-chart build (6.16.2c).
+constexpr GameVersionId kLayoutVer = GameVersionId::k6162c;
+inline constexpr size_t kDifficultyPointersOffset =
+    offsetof(layouts::Song<kLayoutVer>, difficulty_pointers);
+inline constexpr size_t kDifficultyPresenceOffset =
+    offsetof(layouts::Song<kLayoutVer>, difficulty_presence);
+inline constexpr size_t kDifficultyLockOffset =
+    offsetof(layouts::SongDifficulty<kLayoutVer>, lock);
+inline constexpr size_t kDifficultyObjectReadableBytes =
+    sizeof(layouts::SongDifficulty<kLayoutVer>);
+inline constexpr size_t kSongRegistryOwnerRegistryOffset =
+    offsetof(layouts::SongRegistryOwner<kLayoutVer>, registry);
 inline constexpr size_t kMaxRuntimeDifficultyPairs = 4096;
 
 // Asset namespaces and importer-generated aliases.

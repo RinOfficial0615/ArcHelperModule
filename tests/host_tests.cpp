@@ -61,6 +61,12 @@ int main(int argc, char **argv) {
         assert(cfg::custom_charts::LocalChartAssetPath("ah_lostrequi_422e6e2f", 3) ==
                "songs/ah_lostrequi_422e6e2f/3.aff");
         assert(cfg::custom_charts::LocalChartAssetPath("ah_demo", 2) == "songs/ah_demo/2.aff");
+        assert(cfg::custom_charts::kDifficultyCount == 5);
+        assert(cfg::custom_charts::kDifficultyPointersOffset == 0x228);
+        assert(cfg::custom_charts::kDifficultyPresenceOffset == 0x250);
+        assert(cfg::custom_charts::kDifficultyLockOffset == 0xF0);
+        assert(cfg::custom_charts::kDifficultyObjectReadableBytes == 0x128);
+        assert(cfg::custom_charts::kSongRegistryOwnerRegistryOffset == 32);
         session.OnCustomChartMapped("songs/ah_demo/3.aff");
         const auto started = session.Read();
         assert(started.active);

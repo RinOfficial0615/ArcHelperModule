@@ -1,5 +1,6 @@
 #include "manager/custom_chart/CustomChartGameplaySession.hpp"
 
+#include "config/CustomChartConfig.h"
 #include "utils/Log.h"
 
 namespace arc_helper {
@@ -48,7 +49,7 @@ void CustomChartGameplaySession::OnAssetRead(std::string_view logical_path) {
 }
 
 bool CustomChartGameplaySession::IsBaseAsset(std::string_view logical_path) noexcept {
-    return logical_path.ends_with("base.jpg");
+    return logical_path.ends_with(cfg::custom_charts::kJacketAssetName);
 }
 
 CustomChartGameplaySession::Snapshot CustomChartGameplaySession::Read() const noexcept {

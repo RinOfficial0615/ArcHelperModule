@@ -25,7 +25,7 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/manager/custom_chart/CustomChartAssetIndex.{hpp,cpp}` — canonical logical asset paths and APK-era aliases
 - `src/manager/custom_chart/CustomChartSnapshot.{hpp,cpp}` — immutable songlist model and pure official-songlist merge
 - `src/manager/custom_chart/CustomChartReportWriter.{hpp,cpp}` — manifest/report writes and orphan-cache commit gate
-- `src/manager/custom_chart/CustomChartGameplaySession.{hpp,cpp}` — atomic custom-chart play window; mapped `.aff` starts it, a `base.jpg` read ends it
+- `src/manager/custom_chart/CustomChartGameplaySession.{hpp,cpp}` — atomic custom-chart play window; mapped `.aff` starts it, a `kJacketAssetName` read ends it
 - `src/features/CustomCharts.{hpp,cpp}` — custom-chart feature lifecycle and AssetVirtualizer installation
 - `src/features/AssetVirtualizer.{hpp,cpp}` — virtual songlist/custom assets and official-default asset redirects
 - `src/GameTypes.hpp` — thin wrappers for `Gameplay`, `LogicArcNote`, `LogicHoldNote` etc

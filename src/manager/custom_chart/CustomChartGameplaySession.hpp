@@ -21,7 +21,7 @@ public:
     // CustomChartAssetIndex::IsCustomChartPath already accepted.
     void OnCustomChartMapped(std::string_view logical_path);
 
-    // A read of any asset path ending in "base.jpg" closes the session.
+    // A read of any asset path ending in kJacketAssetName closes the session.
     void OnAssetRead(std::string_view logical_path);
 
     Snapshot Read() const noexcept;
