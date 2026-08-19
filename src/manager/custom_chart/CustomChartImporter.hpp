@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "manager/custom_chart/AffNormalizer.hpp"
 #include "manager/custom_chart/CustomChartSnapshot.hpp"
 
 namespace arc_helper {
@@ -22,6 +23,10 @@ private:
     ImportedSong MakeDefaultSong() const;
     void AddDiagnostic(std::string package, std::string item,
                        std::string status, std::string detail);
+    void RecordAffDiagnostics(const std::string &package,
+                              const std::string &song_id,
+                              const std::string &source_name,
+                              const aff::Result &normalized);
 
     CustomChartSettings settings_{};
     std::vector<ImportedSong> songs_{};

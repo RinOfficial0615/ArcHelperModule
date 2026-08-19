@@ -49,7 +49,7 @@ git submodule update --init --recursive
 
 运行时目录：`Android/data/<包名>/files/ArcHelper/`。各 Feature 实例会生成并规范化 `config.json`，自定义谱面从 `charts/` 扫描，进程日志写入 `logs/`，总计保留五份。
 
-配置和谱面目录每个进程只读取一次。已注册字段类型或范围错误时会写回默认值，未知字段保留；JSON 整体损坏时重新生成全部 Feature 默认值。raw ZIP 最低只需音频和 AFF，自定义难度槽位支持 `0..4`。
+配置和谱面目录每个进程只读取一次。已注册字段类型或范围错误时会写回默认值，未知字段保留；JSON 整体损坏时重新生成全部 Feature 默认值。raw ZIP 最低只需音频和 AFF，自定义难度槽位支持 `0..4`。音频必须已经是 OGG Vorbis（`base.ogg`）；WAV 和其他编码会按原样落下，导入时不会转码。
 
 - `src/game/GameProfile.hpp` — 各版本的函数/RTTI/patch 偏移
 - `src/game/GameStructs.hpp` — 游戏对象布局（含显式 padding，编译期校验）
@@ -58,7 +58,7 @@ git submodule update --init --recursive
 - `module/config.example.json` — 运行时配置示例
 - `module/scope.txt` — 打包到 ZIP 根目录的模块作用域
 
-第三方源码固定在 `third_party/json`、`third_party/libcxx`、`third_party/lsplt` 和 `third_party/magic_enum`。libcxx 子模块固定为 `d5117df3ba7704aab06c3a30b97c7529c931662b`，并作为模块的静态 C++ 运行库链接；`magic_enum` 固定为 v0.9.8。Zygisk API 头文件位于 `third_party/zygisk.hpp`。
+第三方源码固定在 `third_party/json`、`third_party/libcxx`、`third_party/lsplt`、`third_party/magic_enum`、`third_party/rapidyaml` 和 `third_party/stb`。libcxx 子模块固定为 `d5117df3ba7704aab06c3a30b97c7529c931662b`，并作为模块的静态 C++ 运行库链接；`magic_enum` 固定为 v0.9.8。Zygisk API 头文件位于 `third_party/zygisk.hpp`。
 
 ## AI
 

@@ -12,7 +12,35 @@ CustomCharts &CustomCharts::Instance() {
     return feature;
 }
 
-CustomCharts::CustomCharts() : Feature("CustomCharts") {}
+CustomCharts::CustomCharts() : Feature("CustomCharts") {
+    auto &config = ConfigManager::Instance();
+    config.EnsureObject(Name(), "defaults");
+    config.EnsureObject(Name(), "overrides");
+    default_artist_ = config.Read(Name(), "defaults", "artist", std::string("Unknown"),
+                                  [](const std::string &value) { return !value.empty(); });
+    default_designer_ = config.Read(Name(), "defaults", "designer", std::string("Unknown"),
+                                    [](const std::string &value) { return !value.empty(); });
+    default_bpm_ = config.Read(Name(), "defaults", "bpm", 120.0, 1.0, 10000.0);
+    default_side_ = config.Read(Name(), "defaults", "side", 1, 0, 2);
+    default_background_ =
+        config.Read(Name(), "defaults", "background", std::string("base_conflict"),
+                    [](const std::string &value) { return !value.empty(); });
+    default_preview_start_ms_ = config.Read(
+        Name(), "defaults", "preview_start_ms", int64_t{0}, int64_t{0},
+        cfg::custom_charts::kMaximumPreviewEndMs - cfg::custom_charts::kDefaultPreviewDurationMs);
+    default_preview_duration_ms_ = config.Read(
+        Name(), "defaults", "preview_duration_ms", cfg::custom_charts::kDefaultPreviewDurationMs,
+        [this](const int64_t &value) {
+            return value > 0 &&
+                   value <= cfg::custom_charts::kMaximumPreviewEndMs - default_preview_start_ms_;
+        });
+    default_chart_difficulty_ = config.Read(Name(), "defaults", "chart_difficulty", 2, 0, 4);
+    default_rating_ = config.Read(Name(), "defaults", "rating", 0, 0, 20);
+    override_side_ = config.TryRead<int>(Name(), "overrides", "side", 0, 2);
+    override_background_ = config.TryRead<std::string>(
+        Name(), "overrides", "background",
+        [](const std::string &value) { return !value.empty(); });
+}
 
 bool CustomCharts::Enabled() const {
     return enabled_ && ConfigManager::Instance().RootAvailable();
@@ -54,6 +82,8 @@ void CustomCharts::Install(const cfg::GameProfile &profile) {
         .fallback_song_id = fallback_song_id_,
         .rating_plus_minimum_rating = rating_plus_minimum_rating_,
         .rating_plus_threshold = rating_plus_threshold_,
+        .override_side = override_side_,
+        .override_background = override_background_,
     };
 
     auto &manager = CustomChartManager::Instance();

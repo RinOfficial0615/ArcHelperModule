@@ -15,6 +15,10 @@ struct MemRange {
 class ProcMaps {
 public:
     static uintptr_t FindLibraryBase(std::string_view soname);
+    // ELF load bias from a /proc/<pid>/maps dump. Uses the executable PT_LOAD
+    // (smallest file offset with PROT_EXEC); remapped GNU_RELRO is ignored.
+    static uintptr_t FindLibraryBaseFromMaps(std::string_view maps_text,
+                                             std::string_view soname);
     static bool GetLibraryExecRanges(std::string_view soname,
                                      std::array<MemRange, 64> &out_ranges,
                                      size_t &out_count);

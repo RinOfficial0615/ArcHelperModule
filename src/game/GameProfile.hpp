@@ -62,6 +62,7 @@ struct CustomChartsOffsets {
     uintptr_t difficulty_availability = 0;
     uintptr_t song_unlock_mask_check = 0;
     uintptr_t content_availability = 0;
+    uintptr_t play_launcher = 0;
     uintptr_t chart_path = 0;
     uintptr_t song_registry_global = 0;
     uintptr_t find_song_by_id = 0;
@@ -215,6 +216,7 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
             .difficulty_availability = 0xE162C8,
             .song_unlock_mask_check = 0xD988F4,
             .content_availability = 0x121E9FC,
+            .play_launcher = 0xC987A8,
             .chart_path = 0xA74680,
             .song_registry_global = 0x1AAB6E0,
             .find_song_by_id = 0xCADFA4,

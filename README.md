@@ -47,7 +47,7 @@ Hooks are not installed immediately. `GameVersionManager` probes the game build 
 
 Runtime directory: `Android/data/<package>/files/ArcHelper/`. Feature instances generate and normalize `config.json`, custom charts are scanned from `charts/`, and process logs are written under `logs/` with five files retained.
 
-Configuration and packages are read once per process. Invalid registered values are rewritten to defaults while unknown keys are preserved; malformed JSON regenerates all Feature defaults. A raw ZIP needs only audio plus AFF files, and custom difficulty slots `0..4` are supported.
+Configuration and packages are read once per process. Invalid registered values are rewritten to defaults while unknown keys are preserved; malformed JSON regenerates all Feature defaults. A raw ZIP needs only audio plus AFF files, and custom difficulty slots `0..4` are supported. Audio must already be OGG Vorbis (`base.ogg`); WAV and other encodings are stored as-is and are not transcoded.
 
 - `src/game/GameProfile.hpp` — per-version function / RTTI / patch offsets
 - `src/game/GameStructs.hpp` — game object layouts (padded, compile-time verified)
@@ -57,7 +57,7 @@ Configuration and packages are read once per process. Invalid registered values 
 - `module/config.example.json` — example runtime configuration
 - `module/scope.txt` — module scope packaged at the ZIP root
 
-Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, `third_party/lsplt`, and `third_party/magic_enum`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. `magic_enum` is pinned to v0.9.8. The Zygisk API header is stored at `third_party/zygisk.hpp`.
+Third-party sources are pinned at `third_party/json`, `third_party/libcxx`, `third_party/lsplt`, `third_party/magic_enum`, `third_party/rapidyaml`, and `third_party/stb`. The libcxx submodule is fixed at `d5117df3ba7704aab06c3a30b97c7529c931662b` and linked as the module's static C++ runtime. `magic_enum` is pinned to v0.9.8. The Zygisk API header is stored at `third_party/zygisk.hpp`.
 
 ## AI
 

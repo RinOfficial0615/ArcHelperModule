@@ -23,7 +23,9 @@ inline constexpr int64_t kMaximumPreviewEndMs = INT32_MAX;
 inline constexpr int64_t kDefaultPreviewDurationMs = 30000;
 inline constexpr int kMinimumRating = 0;
 inline constexpr int kMaximumRating = 20;
+inline constexpr int kPlaceholderRating = -1;
 inline constexpr int kMinimumChartConstant = 0;
+inline constexpr int kMaxAffIncludeDepth = 8;
 
 inline constexpr size_t kDifficultyCount = layouts::kSongDifficultySlotCount;
 inline constexpr size_t kPastDifficulty = 0;
@@ -46,6 +48,10 @@ inline constexpr size_t kDifficultyPointersOffset =
     offsetof(layouts::Song<kLayoutVer>, difficulty_pointers);
 inline constexpr size_t kDifficultyPresenceOffset =
     offsetof(layouts::Song<kLayoutVer>, difficulty_presence);
+inline constexpr size_t kRemotePackFlagOffset =
+    offsetof(layouts::Song<kLayoutVer>, remote_pack);
+inline constexpr int kOfficialBackgroundWidth = 1920;
+inline constexpr int kOfficialBackgroundHeight = 1440;
 inline constexpr size_t kDifficultyLockOffset =
     offsetof(layouts::SongDifficulty<kLayoutVer>, lock);
 inline constexpr size_t kDifficultyObjectReadableBytes =
@@ -125,6 +131,14 @@ inline constexpr std::array<uint8_t, 16> kSigSongUnlockMaskCheck = {
 inline constexpr std::array<uint8_t, 16> kSigContentAvailability = {
     0xFD, 0x7B, 0xBD, 0xA9, 0xF6, 0x57, 0x01, 0xA9,
     0xF4, 0x4F, 0x02, 0xA9, 0xFD, 0x03, 0x00, 0x91,
+};
+
+// IDA: sub_C987A8. loc_C9940C (Download song?) if avail==1 and
+// (difficulty==3 or song+0x1C0). song+0x1C0 also switches preview BGM
+// to dl_{id}/base.ogg, so custom songs only raise it for this call.
+inline constexpr std::array<uint8_t, 16> kSigPlayLauncher = {
+    0xFD, 0x7B, 0xBA, 0xA9, 0xFC, 0x6F, 0x01, 0xA9,
+    0xFA, 0x67, 0x02, 0xA9, 0xF8, 0x5F, 0x03, 0xA9,
 };
 
 // IDA: sub_A74680. PST/PRS/FTR build songs/{id}/{n}.aff; Beyond (class 3)

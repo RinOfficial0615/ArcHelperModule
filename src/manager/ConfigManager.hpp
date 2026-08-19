@@ -6,6 +6,7 @@
 #include <functional>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -164,6 +165,37 @@ public:
             [minimum, maximum](const T &value) { return value >= minimum && value <= maximum; });
     }
 
+    template <config_detail::ConfigScalar T, typename Validator>
+        requires config_detail::ConfigValidator<Validator, T>
+    std::optional<T> TryRead(std::string_view section, std::string_view subsection,
+                             std::string_view key, Validator validator) {
+        nlohmann::json encoded_value;
+        {
+            std::scoped_lock lock(mutex_);
+            const nlohmann::json *object = FindObjectLocked(section, subsection);
+            if (!object) return std::nullopt;
+            const auto found = object->find(std::string(key));
+            if (found == object->end()) return std::nullopt;
+            encoded_value = *found;
+        }
+        T result{};
+        if (!config_detail::ReadJsonValue(encoded_value, result) ||
+            !std::invoke(validator, std::as_const(result))) {
+            return std::nullopt;
+        }
+        return result;
+    }
+
+    template <config_detail::ConfigScalar T>
+    std::optional<T> TryRead(std::string_view section, std::string_view subsection,
+                             std::string_view key, T minimum, T maximum) {
+        return TryRead<T>(section, subsection, key, [minimum, maximum](const T &value) {
+            return value >= minimum && value <= maximum;
+        });
+    }
+
+    void EnsureObject(std::string_view section, std::string_view subsection);
+
 #ifdef ARC_HELPER_HOST_TEST
     void SetRootDirForTesting(const std::string &root_dir);
     void ResetForTesting(const std::string &root_dir);
@@ -203,6 +235,8 @@ private:
     }
 
     nlohmann::json &GetObjectLocked(std::string_view section, std::string_view subsection);
+    const nlohmann::json *FindObjectLocked(std::string_view section,
+                                           std::string_view subsection) const;
     void SetRootDirLocked(const std::string &root_dir);
 
     mutable std::mutex mutex_{};

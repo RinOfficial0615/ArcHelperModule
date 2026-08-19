@@ -33,15 +33,19 @@
   },
   "CustomCharts": {
     "enabled": true,
-    "default_artist": "Unknown",
-    "default_designer": "Unknown",
-    "default_bpm": 120.0,
-    "default_side": 1,
-    "default_background": "base_conflict",
-    "default_preview_start_ms": 0,
-    "default_preview_duration_ms": 30000,
-    "default_chart_difficulty": 2,
-    "default_rating": 0,
+    "defaults": {
+      "artist": "Unknown",
+      "designer": "Unknown",
+      "bpm": 120.0,
+      "side": 1,
+      "background": "base_conflict",
+      "preview_start_ms": 0,
+      "preview_duration_ms": 30000,
+      "chart_difficulty": 2,
+      "rating": 0
+    },
+    "overrides": {
+    },
     "fallback_song_id": "chart",
     "rating_plus_minimum_rating": 7,
     "rating_plus_threshold": 0.69999

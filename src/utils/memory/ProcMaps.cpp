@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <limits>
 #include <vector>
 
 #include <sys/mman.h>
@@ -156,6 +157,16 @@ const PermissionCache *CurrentPermissionCache() {
     return &t_permission_cache;
 }
 
+void ConsiderExecLoadBias(uintptr_t start,
+                          uintptr_t off,
+                          int perms,
+                          uintptr_t &best_off,
+                          uintptr_t &best_bias) {
+    if ((perms & PROT_EXEC) == 0 || off > start || off >= best_off) return;
+    best_off = off;
+    best_bias = start - off;
+}
+
 bool CachedRangePermitted(uintptr_t addr, size_t len, int required_permissions) {
     if (len == 0 || addr == 0 || len > UINTPTR_MAX - addr) return false;
     const PermissionCache *cache = CurrentPermissionCache();
@@ -177,12 +188,46 @@ bool CachedRangePermitted(uintptr_t addr, size_t len, int required_permissions) 
 
 } // namespace
 
+uintptr_t ProcMaps::FindLibraryBaseFromMaps(std::string_view maps_text,
+                                            std::string_view soname) {
+    uintptr_t best_off = std::numeric_limits<uintptr_t>::max();
+    uintptr_t best_bias = 0;
+
+    while (!maps_text.empty()) {
+        const size_t nl = maps_text.find('\n');
+        std::string_view line =
+            nl == std::string_view::npos ? maps_text : maps_text.substr(0, nl);
+        maps_text = nl == std::string_view::npos ? std::string_view{}
+                                                 : maps_text.substr(nl + 1);
+        if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+        if (line.empty()) continue;
+
+        char buf[4096];
+        if (line.size() >= sizeof(buf)) continue;
+        std::memcpy(buf, line.data(), line.size());
+        buf[line.size()] = '\0';
+
+        uintptr_t start = 0;
+        uintptr_t end = 0;
+        uintptr_t off = 0;
+        int perms = 0;
+        std::string_view path;
+        if (!ParseProcMapsLine(buf, &start, &end, &off, &perms, &path)) continue;
+        (void)end;
+        if (!PathMatchesSoname(path, soname)) continue;
+        ConsiderExecLoadBias(start, off, perms, best_off, best_bias);
+    }
+
+    return best_bias;
+}
+
 uintptr_t ProcMaps::FindLibraryBase(std::string_view soname) {
     FILE *fp = fopen("/proc/self/maps", "r");
     if (!fp) return 0;
 
     char line[4096];
-    uintptr_t base = 0;
+    uintptr_t best_off = std::numeric_limits<uintptr_t>::max();
+    uintptr_t best_bias = 0;
     while (fgets(line, sizeof(line), fp)) {
         uintptr_t start = 0;
         uintptr_t end = 0;
@@ -191,16 +236,12 @@ uintptr_t ProcMaps::FindLibraryBase(std::string_view soname) {
         std::string_view path;
         if (!ParseProcMapsLine(line, &start, &end, &off, &perms, &path)) continue;
         (void)end;
-        (void)perms;
         if (!PathMatchesSoname(path, soname)) continue;
-
-        if (off > start) continue;
-        const uintptr_t candidate = start - off;
-        if (base == 0 || candidate < base) base = candidate;
+        ConsiderExecLoadBias(start, off, perms, best_off, best_bias);
     }
 
     fclose(fp);
-    return base;
+    return best_bias;
 }
 
 bool ProcMaps::GetLibraryExecRanges(std::string_view soname,

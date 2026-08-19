@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "config/CustomChartConfig.h"
@@ -53,6 +54,8 @@ struct CustomChartSettings {
     std::string fallback_song_id;
     int rating_plus_minimum_rating = 0;
     double rating_plus_threshold = 0.0;
+    std::optional<int> override_side;
+    std::optional<std::string> override_background;
 };
 
 struct ImportDiagnostic {

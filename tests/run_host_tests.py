@@ -89,6 +89,57 @@ def _find_winpthread() -> pathlib.Path:
 
 HOST_LINK_ARGS = ["-L", str(_find_winpthread().parent), "-lwinpthread"]
 
+RYML_SOURCES = [
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "base64.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "error.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "format.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "language.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "memory_util.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "utf.cpp",
+    ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src" / "c4" / "version.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "common.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "node_type.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "parse.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "reference_resolver.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "scalar_style.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "tag.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "tree.cpp",
+    ROOT / "third_party" / "rapidyaml" / "src" / "c4" / "yml" / "version.cpp",
+]
+RYML_INCLUDES = [
+    "-isystem",
+    str(ROOT / "third_party" / "rapidyaml" / "src"),
+    "-isystem",
+    str(ROOT / "third_party" / "rapidyaml" / "ext" / "c4core.src"),
+]
+
+
+def compile_ryml_objects() -> list[pathlib.Path]:
+    objects: list[pathlib.Path] = []
+    for source in RYML_SOURCES:
+        obj = BUILD / f"ryml-{source.stem}.o"
+        subprocess.run(
+            [
+                CXX,
+                "-std=c++23",
+                "-O2",
+                "-c",
+                str(source),
+                "-o",
+                str(obj),
+                "-DC4_NO_DEBUG_BREAK",
+                "-DC4_USE_ASSERT=0",
+                *RYML_INCLUDES,
+            ],
+            check=True,
+            cwd=ROOT,
+        )
+        objects.append(obj)
+    return objects
+
+
+ryml_objects = compile_ryml_objects()
+
 exe = BUILD / "host_tests.exe"
 compile_cmd = [
     CXX,
@@ -271,6 +322,148 @@ subprocess.run(memory_patch_compile, check=True, cwd=ROOT)
 subprocess.run([str(memory_patch_exe)], check=True, cwd=ROOT)
 print("validated runtime memory range checks and patch transaction rollback")
 
+proc_maps_exe = BUILD / "proc_maps_host_test.exe"
+proc_maps_compile = [
+    CXX,
+    *HOST_LINK_ARGS,
+    "-std=c++23",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-static",
+    "-static-libgcc",
+    "-static-libstdc++",
+    "-I",
+    str(ROOT / "tests" / "stubs"),
+    "-I",
+    str(ROOT / "src"),
+    str(ROOT / "tests" / "proc_maps_host_test.cpp"),
+    str(ROOT / "src" / "utils" / "memory" / "ProcMaps.cpp"),
+    "-o",
+    str(proc_maps_exe),
+]
+subprocess.run(proc_maps_compile, check=True, cwd=ROOT)
+subprocess.run([str(proc_maps_exe)], check=True, cwd=ROOT)
+print("validated library load-bias selection against remapped GNU_RELRO maps")
+
+aff_normalizer_exe = BUILD / "aff_normalizer_host_test.exe"
+subprocess.run(
+    [
+        CXX,
+        *HOST_LINK_ARGS,
+        "-std=c++23",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-static",
+        "-static-libgcc",
+        "-static-libstdc++",
+        "-I",
+        str(ROOT / "src"),
+        "-I",
+        str(MAGIC_ENUM_INCLUDE),
+        str(ROOT / "tests" / "aff_normalizer_host_test.cpp"),
+        str(ROOT / "src" / "manager" / "custom_chart" / "AffNormalizer.cpp"),
+        "-o",
+        str(aff_normalizer_exe),
+    ],
+    check=True,
+    cwd=ROOT,
+)
+subprocess.run([str(aff_normalizer_exe)], check=True, cwd=ROOT)
+print("validated AFF normalize: official scenecontrol, timinggroup, timing tokens")
+
+official_parser_exe = BUILD / "aff_official_parser_host_test.exe"
+subprocess.run(
+    [
+        CXX,
+        *HOST_LINK_ARGS,
+        "-std=c++23",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-static",
+        "-static-libgcc",
+        "-static-libstdc++",
+        "-I",
+        str(ROOT / "src"),
+        "-I",
+        str(MAGIC_ENUM_INCLUDE),
+        str(ROOT / "tests" / "aff_official_parser_host_test.cpp"),
+        str(ROOT / "src" / "manager" / "custom_chart" / "AffNormalizer.cpp"),
+        str(ROOT / "src" / "manager" / "custom_chart" / "AffOfficialParser.cpp"),
+        "-o",
+        str(official_parser_exe),
+    ],
+    check=True,
+    cwd=ROOT,
+)
+subprocess.run([str(official_parser_exe)], check=True, cwd=ROOT)
+print("validated official 6.16.2c AFF token grammar")
+
+image_raster_exe = BUILD / "image_raster_host_test.exe"
+subprocess.run(
+    [
+        CXX,
+        *HOST_LINK_ARGS,
+        "-std=c++23",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-static",
+        "-static-libgcc",
+        "-static-libstdc++",
+        "-I",
+        str(ROOT / "src"),
+        "-I",
+        str(ROOT / "third_party"),
+        str(ROOT / "tests" / "image_raster_host_test.cpp"),
+        str(ROOT / "src" / "utils" / "ImageRaster.cpp"),
+        "-o",
+        str(image_raster_exe),
+    ],
+    check=True,
+    cwd=ROOT,
+)
+subprocess.run([str(image_raster_exe)], check=True, cwd=ROOT)
+print("validated background resample to 1920x1440 JPEG")
+
+yaml_exe = BUILD / "arc_package_format_host_test.exe"
+subprocess.run(
+    [
+        CXX,
+        *HOST_LINK_ARGS,
+        "-std=c++23",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-static",
+        "-static-libgcc",
+        "-static-libstdc++",
+        "-DC4_NO_DEBUG_BREAK",
+        "-DC4_USE_ASSERT=0",
+        "-I",
+        str(ROOT / "src"),
+        "-I",
+        str(MAGIC_ENUM_INCLUDE),
+        *RYML_INCLUDES,
+        str(ROOT / "tests" / "arc_package_format_host_test.cpp"),
+        str(ROOT / "src" / "manager" / "custom_chart" / "ArcPackageFormat.cpp"),
+        *map(str, ryml_objects),
+        "-o",
+        str(yaml_exe),
+    ],
+    check=True,
+    cwd=ROOT,
+)
+subprocess.run([str(yaml_exe)], check=True, cwd=ROOT)
+print("validated ArcCreate YAML index/project parsing")
+
 valid = sorted((WORKSPACE / "ArcCreate" / "arcpkg-samples").glob("*.arcpkg"))
 valid += sorted((WORKSPACE / "ArcCreate" / "raw-zip-samples").glob("*.zip"))
 if len(valid) < 7:
@@ -407,16 +600,25 @@ import_compile = [
     str(ROOT),
     "-I",
     str(ROOT / "third_party" / "json" / "include"),
+    "-I",
+    str(ROOT / "third_party"),
+    *RYML_INCLUDES,
+    "-DC4_NO_DEBUG_BREAK",
+    "-DC4_USE_ASSERT=0",
     str(ROOT / "tests" / "importer_host_test.cpp"),
     str(ROOT / "tests" / "asset_virtualizer_stub.cpp"),
     str(ROOT / "src" / "manager" / "CustomChartManager.cpp"),
     str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartImporter.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "ArcPackageFormat.cpp"),
+    str(ROOT / "src" / "manager" / "custom_chart" / "AffNormalizer.cpp"),
     str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartAssetIndex.cpp"),
     str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartSnapshot.cpp"),
     str(ROOT / "src" / "manager" / "custom_chart" / "CustomChartReportWriter.cpp"),
     str(ROOT / "src" / "utils" / "Log.cpp"),
     str(ROOT / "src" / "utils" / "Sha256.cpp"),
     str(ROOT / "src" / "utils" / "ZipArchive.cpp"),
+    str(ROOT / "src" / "utils" / "ImageRaster.cpp"),
+    *map(str, ryml_objects),
     "-lz",
     "-o",
     str(importer_exe),

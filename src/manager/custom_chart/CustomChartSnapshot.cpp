@@ -34,15 +34,17 @@ std::string ImportSnapshot::SongsJson() const {
             {"difficulties", Json::array()},
         };
         for (size_t slot = 0; slot < cfg::custom_charts::kDifficultyCount; ++slot) {
-            if (!song.has_chart[slot]) continue;
-            const auto &chart = song.charts[slot];
+            const bool present = song.has_chart[slot];
+            const bool placeholder = !present && slot <= cfg::custom_charts::kFutureDifficulty;
+            if (!present && !placeholder) continue;
             Json difficulty = {
                 {"ratingClass", slot},
-                {"chartDesigner", chart.charter},
-                {"jacketDesigner", chart.jacket_designer},
-                {"rating", chart.rating},
+                {"chartDesigner", present ? song.charts[slot].charter : std::string{}},
+                {"jacketDesigner", present ? song.charts[slot].jacket_designer : std::string{}},
+                {"rating", present ? song.charts[slot].rating
+                                   : cfg::custom_charts::kPlaceholderRating},
             };
-            if (chart.rating_plus) difficulty["ratingPlus"] = true;
+            if (present && song.charts[slot].rating_plus) difficulty["ratingPlus"] = true;
             item["difficulties"].push_back(std::move(difficulty));
         }
         // The 6.16.2c parser treats Beyond as locally locked unless this

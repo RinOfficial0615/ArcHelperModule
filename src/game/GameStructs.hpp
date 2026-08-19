@@ -182,7 +182,9 @@ inline constexpr size_t kSongDifficultySlotCount = 5;
 
 namespace impl {
 struct SongBase {
-    uint8_t   pad_00[0x228];
+    uint8_t   pad_00[0x1C0];
+    uint8_t   remote_pack;              // +0x1C0  chartPath / play dialog / preview dl_ prefix
+    uint8_t   pad_1C1[0x67];
     uintptr_t difficulty_pointers[kSongDifficultySlotCount]; // +0x228
     uint8_t   difficulty_presence[kSongDifficultySlotCount]; // +0x250
 };
@@ -273,6 +275,7 @@ static_assert(offsetof(HttpRequest<V::k6162c>, type) == 12);
 static_assert(offsetof(HttpResponse<V::k6162c>, request) == 16);
 static_assert(offsetof(HttpResponse<V::k6162c>, statusCode) == 80);
 
+static_assert(offsetof(Song<V::k6162c>, remote_pack) == 0x1C0);
 static_assert(offsetof(Song<V::k6162c>, difficulty_pointers) == 0x228);
 static_assert(offsetof(Song<V::k6162c>, difficulty_presence) == 0x250);
 static_assert(offsetof(Song<V::k6162c>, difficulty_presence) ==

@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 
 #include <nlohmann/json.hpp>
 
@@ -27,6 +28,8 @@ int main(int argc, char **argv) {
         .fallback_song_id = "configured",
         .rating_plus_minimum_rating = 7,
         .rating_plus_threshold = 0.69999,
+        .override_side = std::nullopt,
+        .override_background = std::nullopt,
     };
     auto &manager = arc_helper::CustomChartManager::Instance();
     assert(manager.ImportForTesting(settings));
@@ -65,7 +68,19 @@ int main(int argc, char **argv) {
         assert(manager.ResolveAsset(("Resources/" + song_root + "/1080/base_256.jpg").c_str()) != nullptr);
         assert(manager.ResolveAsset(("file:///android_asset/" + song_root + "/base.ogg").c_str()) != nullptr);
         std::string custom_song_id;
-        const int first_slot = song.at("difficulties").at(0).at("ratingClass").get<int>();
+        int first_slot = -1;
+        bool has_pst = false, has_prs = false, has_ftr = false;
+        for (const auto &difficulty : song.at("difficulties")) {
+            const int rating_class = difficulty.at("ratingClass").get<int>();
+            if (rating_class == 0) has_pst = true;
+            if (rating_class == 1) has_prs = true;
+            if (rating_class == 2) has_ftr = true;
+            if (first_slot < 0 && difficulty.at("rating").get<int>() >= 0) {
+                first_slot = rating_class;
+            }
+        }
+        assert(has_pst && has_prs && has_ftr);
+        assert(first_slot >= 0);
         assert(manager.IsCustomChartPath(
             ("Resources/" + song_root + "/" + std::to_string(first_slot) + ".aff").c_str(),
             &custom_song_id));
@@ -81,9 +96,20 @@ int main(int argc, char **argv) {
             assert(song.at("side").get<int>() == 0);
             assert(song.at("bg").get<std::string>() == "base_light");
             assert(song.at("byd_local_unlock").get<bool>());
-            assert(difficulties.size() == 1);
-            assert(difficulties.at(0).at("ratingClass").get<int>() == 3);
-            assert(difficulties.at(0).at("rating").get<int>() == 10);
+            int placeholders = 0;
+            bool saw_byd = false;
+            for (const auto &difficulty : difficulties) {
+                const int rating_class = difficulty.at("ratingClass").get<int>();
+                if (rating_class == 3) {
+                    saw_byd = true;
+                    assert(difficulty.at("rating").get<int>() == 10);
+                } else if (rating_class <= 2) {
+                    assert(difficulty.at("rating").get<int>() == -1);
+                    ++placeholders;
+                }
+            }
+            assert(saw_byd);
+            assert(placeholders == 3);
         }
         if (title == "Melodiniq") {
             const auto eternal = std::ranges::find_if(difficulties, [](const auto &difficulty) {
@@ -113,20 +139,23 @@ int main(int argc, char **argv) {
             assert(song.at("audioPreviewEnd").get<int64_t>() == 30000);
         }
         for (const auto &difficulty : difficulties) {
-            assert(difficulty.at("rating").get<int>() >= 0);
-            const int rating = difficulty.value("rating", -1);
+            const int rating = difficulty.value("rating", -99);
+            const int rating_class = difficulty.at("ratingClass").get<int>();
             const bool plus = difficulty.value("ratingPlus", false);
+            if (rating == -1) {
+                assert(rating_class <= 2);
+                continue;
+            }
+            assert(rating >= 0);
             if (title == "tiny tales continue" && (rating == 5 || rating == 9)) {
                 checked_tiny_tales = true;
                 assert(!plus);
             }
-            if (title == "Bounded Numeric") {
-                assert(difficulty.at("ratingClass").get<int>() == 2);
+            if (title == "Bounded Numeric" && rating_class == 2) {
                 assert(rating == 0);
                 assert(!plus);
             }
-            if (title == "Bounded Arc") {
-                assert(difficulty.at("ratingClass").get<int>() == 2);
+            if (title == "Bounded Arc" && rating_class == 2) {
                 assert(rating == 11);
                 assert(plus);
                 assert(difficulty.at("chartDesigner").get<std::string>() == "Folded Charter");

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+#include <string>
+
 #include "config/CustomChartConfig.h"
 #include "game/GameProfile.hpp"
 #include "features/Feature.hpp"
@@ -22,29 +25,22 @@ private:
     bool hooks_installed_ = false;
 
     AH_CFG(enabled, true);
-    AH_CFG(default_artist, "Unknown",
-           [](std::string_view value) { return !value.empty(); });
-    AH_CFG(default_designer, "Unknown",
-           [](std::string_view value) { return !value.empty(); });
-    AH_CFG(default_bpm, 120.0, 1.0, 10000.0);
-    AH_CFG(default_side, 1, 0, 2);
-    AH_CFG(default_background, "base_conflict",
-           [](std::string_view value) { return !value.empty(); });
-    AH_CFG(default_preview_start_ms, int64_t{0}, int64_t{0},
-           cfg::custom_charts::kMaximumPreviewEndMs -
-               cfg::custom_charts::kDefaultPreviewDurationMs);
-    AH_CFG(default_preview_duration_ms, cfg::custom_charts::kDefaultPreviewDurationMs,
-           [this](const int64_t &value) {
-               return value > 0 &&
-                      value <= cfg::custom_charts::kMaximumPreviewEndMs -
-                                   default_preview_start_ms_;
-           });
-    AH_CFG(default_chart_difficulty, 2, 0, 4);
-    AH_CFG(default_rating, 0, 0, 20);
     AH_CFG(fallback_song_id, "chart",
            [](std::string_view value) { return !value.empty(); });
     AH_CFG(rating_plus_minimum_rating, 7, 0, 20);
     AH_CFG(rating_plus_threshold, 0.69999, 0.0, 1.0);
+
+    std::string default_artist_{};
+    std::string default_designer_{};
+    double default_bpm_ = 120.0;
+    int default_side_ = 1;
+    std::string default_background_{};
+    int64_t default_preview_start_ms_ = 0;
+    int64_t default_preview_duration_ms_ = cfg::custom_charts::kDefaultPreviewDurationMs;
+    int default_chart_difficulty_ = 2;
+    int default_rating_ = 0;
+    std::optional<int> override_side_{};
+    std::optional<std::string> override_background_{};
 };
 
 } // namespace arc_helper

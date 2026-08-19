@@ -6,17 +6,23 @@
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <limits>
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <sstream>
 #include <unordered_set>
 #include <utility>
 
 #include <nlohmann/json.hpp>
 
+#include "manager/custom_chart/AffNormalizer.hpp"
+#include "manager/custom_chart/ArcPackageFormat.hpp"
 #include "manager/custom_chart/CustomChartReportWriter.hpp"
+#include "utils/ImageRaster.hpp"
+#include "utils/Log.h"
 #include "utils/Sha256.hpp"
 #include "utils/ZipArchive.hpp"
 
@@ -193,169 +199,73 @@ std::string FormatBpm(double bpm) {
     return out.str();
 }
 
-struct ArcIndexItem {
-    std::string directory;
-    std::string identifier;
-    std::string settings_file;
-    std::string type;
-};
-
-std::vector<ArcIndexItem> ParseArcIndex(std::string_view text) {
-    std::vector<ArcIndexItem> items;
-    ArcIndexItem current;
-    bool active = false;
-    std::istringstream lines{std::string(text)};
-    std::string line;
-    while (std::getline(lines, line)) {
-        const std::string trimmed = Trim(line);
-        if (trimmed.empty() || trimmed[0] == '#') continue;
-        std::string content = trimmed;
-        if (content.starts_with("- ")) {
-            if (active && !current.directory.empty()) items.push_back(current);
-            current = {};
-            active = true;
-            content = Trim(content.substr(2));
-        }
-        const size_t colon = content.find(':');
-        if (!active || colon == std::string::npos) continue;
-        const std::string key = Trim(content.substr(0, colon));
-        const std::string value = Trim(content.substr(colon + 1));
-        if (key == "directory") current.directory = value;
-        else if (key == "identifier") current.identifier = value;
-        else if (key == "settingsFile") current.settings_file = value;
-        else if (key == "type") current.type = value;
-    }
-    if (active && !current.directory.empty()) items.push_back(current);
-    return items;
-}
-
-struct ArcChartSettings {
-    std::string chart_path, audio_path, jacket_path, background_path, title, composer, charter, illustrator, difficulty;
-    std::string bpm_text;
-    double base_bpm = 0.0;
-    double chart_constant = cfg::custom_charts::kDefaultChartConstant;
-    int64_t preview_start = 0;
-    int64_t preview_end = 0;
-    int side = -1;
-};
-
-std::string *ArcStringField(ArcChartSettings &settings, std::string_view key) {
-    if (key == "chartPath") return &settings.chart_path;
-    if (key == "audioPath") return &settings.audio_path;
-    if (key == "jacketPath") return &settings.jacket_path;
-    if (key == "backgroundPath") return &settings.background_path;
-    if (key == "title") return &settings.title;
-    if (key == "composer") return &settings.composer;
-    if (key == "charter") return &settings.charter;
-    if (key == "illustrator") return &settings.illustrator;
-    if (key == "difficulty") return &settings.difficulty;
-    if (key == "bpmText") return &settings.bpm_text;
-    return nullptr;
-}
-
-int ArcSide(std::string_view value) {
-    const std::string side = Lower(Trim(value));
-    if (side == "light") return 0;
-    if (side == "conflict") return 1;
-    if (side == "colorless") return 2;
-    return -1;
-}
-
-ArcChartSettings DefaultArcChartSettings(const CustomChartSettings &settings) {
-    ArcChartSettings result;
-    result.base_bpm = settings.default_bpm;
-    result.preview_start = settings.default_preview_start_ms;
-    result.preview_end = settings.default_preview_start_ms +
-                         settings.default_preview_duration_ms;
-    return result;
-}
-
-std::vector<ArcChartSettings> ParseArcProject(
-    std::string_view text, const CustomChartSettings &defaults) {
-    std::vector<ArcChartSettings> charts;
-    ArcChartSettings current = DefaultArcChartSettings(defaults);
-    bool in_charts = false, active = false;
-    size_t skin_indent = std::string::npos;
-    size_t folded_indent = std::string::npos;
-    std::string *folded_field = nullptr;
-    std::istringstream lines{std::string(text)};
-    std::string line;
-    while (std::getline(lines, line)) {
-        const size_t indent = line.find_first_not_of(' ');
-        const std::string trimmed = Trim(line);
-        if (folded_field && indent != std::string::npos && indent > folded_indent) {
-            if (!trimmed.empty()) {
-                if (!folded_field->empty()) folded_field->push_back(' ');
-                folded_field->append(trimmed);
-            }
-            continue;
-        }
-        folded_field = nullptr;
-        folded_indent = std::string::npos;
-        if (trimmed == "charts:") { in_charts = true; continue; }
-        if (!in_charts || trimmed.empty() || trimmed[0] == '#') continue;
-        if (indent == 0 && !trimmed.starts_with("- ")) break;
-        std::string content = trimmed;
-        if (indent == 0 && content.starts_with("- ")) {
-            if (active && !current.chart_path.empty()) charts.push_back(current);
-            current = DefaultArcChartSettings(defaults);
-            active = true;
-            skin_indent = std::string::npos;
-            content = Trim(content.substr(2));
-        }
-        if (!active) continue;
-        const size_t colon = content.find(':');
-        if (colon == std::string::npos) continue;
-        const std::string key = Trim(content.substr(0, colon));
-        const std::string value = Trim(content.substr(colon + 1));
-        if (skin_indent != std::string::npos && indent != std::string::npos && indent > skin_indent) {
-            if (key == "side") current.side = ArcSide(value);
-            continue;
-        }
-        skin_indent = std::string::npos;
-        if (key == "skin" && value.empty()) {
-            skin_indent = indent;
-        } else if (std::string *field = ArcStringField(current, key)) {
-            if (value == ">" || value == ">-" || value == "|" || value == "|-") {
-                field->clear();
-                folded_field = field;
-                folded_indent = indent;
-            } else {
-                *field = value;
-            }
-        } else if (key == "baseBpm") {
-            ParseBoundedDouble(value,
-                               cfg::custom_charts::kMinimumBpm,
-                               cfg::custom_charts::kMaximumBpm,
-                               current.base_bpm);
-        } else if (key == "chartConstant") {
-            ParseBoundedDouble(value,
-                               cfg::custom_charts::kMinimumRating,
-                               cfg::custom_charts::kMaximumRating,
-                               current.chart_constant);
-        } else if (key == "previewStart") {
-            ParseBoundedInt64(value,
-                              int64_t{0},
-                              cfg::custom_charts::kMaximumPreviewEndMs -
-                                  defaults.default_preview_duration_ms,
-                              current.preview_start);
-        } else if (key == "previewEnd") {
-            ParseBoundedInt64(value,
-                              int64_t{0},
-                              cfg::custom_charts::kMaximumPreviewEndMs,
-                              current.preview_end);
-        }
-    }
-    if (active && !current.chart_path.empty()) charts.push_back(current);
-    return charts;
-}
-
 std::string JoinZipPath(std::string_view a, std::string_view b) {
     std::string raw(a);
     if (!raw.empty() && raw.back() != '/') raw.push_back('/');
     raw += b;
     std::string normalized;
     return Archive::NormalizePath(raw, normalized) ? normalized : std::string{};
+}
+
+class ZipAffSource final : public aff::Source {
+public:
+    ZipAffSource(const Archive &archive, std::string_view directory)
+        : archive_(&archive), directory_(directory) {}
+
+    std::optional<std::string> ReadRelative(std::string_view from_file,
+                                            std::string_view relative) const override {
+        std::string from = JoinZipPath(directory_, from_file);
+        const size_t slash = from.find_last_of('/');
+        const std::string dir = slash == std::string::npos ? std::string{} : from.substr(0, slash);
+        const std::string wanted = JoinZipPath(dir, relative);
+        std::string text, error;
+        if (wanted.empty() ||
+            !ReadEntryText(*archive_, FindCaseInsensitive(*archive_, wanted), text, error)) {
+            return std::nullopt;
+        }
+        return text;
+    }
+
+private:
+    const Archive *archive_;
+    std::string directory_;
+};
+
+bool WriteBinaryFile(const std::string &path, std::span<const uint8_t> data, std::string &error) {
+    std::error_code ec;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
+            error = "create asset directory failed: " + ec.message();
+            return false;
+        }
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file.write(reinterpret_cast<const char *>(data.data()),
+                    static_cast<std::streamsize>(data.size()))) {
+        error = "write asset failed: " + path;
+        return false;
+    }
+    return true;
+}
+
+bool WriteTextFile(const std::string &path, std::string_view text, std::string &error) {
+    std::error_code ec;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
+            error = "create chart directory failed: " + ec.message();
+            return false;
+        }
+    }
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file.write(text.data(), static_cast<std::streamsize>(text.size()))) {
+        error = "write chart failed: " + path;
+        return false;
+    }
+    return true;
 }
 
 const Json *JsonFind(const Json *object, std::string_view key) {
@@ -528,10 +438,28 @@ bool FinalizeSongAssets(const Archive &archive,
     }
 
     if (background) {
-        song.bg = std::string(cfg::custom_charts::kCustomBackgroundPrefix) + song.id;
-        song.bg_path = std::string(cache_base) + cfg::custom_charts::kExtractedBackgroundStem +
-                       Extension(background->name);
-        if (!archive.ExtractToFile(*background, song.bg_path, error)) {
+        std::vector<uint8_t> raw;
+        std::string raster_error;
+        if (archive.Extract(*background, raw, error) && !raw.empty()) {
+            if (const auto image = NormalizeBackgroundImage(raw, &raster_error)) {
+                song.bg = std::string(cfg::custom_charts::kCustomBackgroundPrefix) + song.id;
+                song.bg_path = std::string(cache_base) +
+                               cfg::custom_charts::kExtractedBackgroundStem + ".jpg";
+                if (!WriteBinaryFile(song.bg_path, image->jpeg, error)) {
+                    song.bg_path.clear();
+                    song.bg = song.side == 0 ? cfg::custom_charts::kLightBackground
+                                             : cfg::custom_charts::kConflictBackground;
+                    defaulted_background = true;
+                }
+            } else {
+                error.clear();
+                song.bg_path.clear();
+                song.bg = song.side == 0 ? cfg::custom_charts::kLightBackground
+                                         : cfg::custom_charts::kConflictBackground;
+                defaulted_background = true;
+            }
+        } else {
+            error.clear();
             song.bg_path.clear();
             song.bg = song.side == 0 ? cfg::custom_charts::kLightBackground
                                      : cfg::custom_charts::kConflictBackground;
@@ -554,6 +482,27 @@ CustomChartImporter::CustomChartImporter(CustomChartSettings settings)
 void CustomChartImporter::AddDiagnostic(std::string package, std::string item,
                                        std::string status, std::string detail) {
     diagnostics_.push_back({std::move(package), std::move(item), std::move(status), std::move(detail)});
+}
+
+void CustomChartImporter::RecordAffDiagnostics(const std::string &package,
+                                              const std::string &song_id,
+                                              const std::string &source_name,
+                                              const aff::Result &normalized) {
+    for (const auto &diag : normalized.diagnostics) {
+        std::string item = song_id;
+        item.push_back(' ');
+        item += source_name;
+        item.push_back(':');
+        item += std::to_string(diag.line);
+        item.push_back(' ');
+        item += diag.item.empty() ? source_name : diag.item;
+        AddDiagnostic(package, std::move(item), diag.status, diag.detail);
+        if (diag.status.starts_with("DROPPED")) {
+            ARC_LOGW("%s %s:%d %s %s %s",
+                     song_id.c_str(), source_name.c_str(), diag.line,
+                     diag.item.c_str(), diag.status.c_str(), diag.detail.c_str());
+        }
+    }
 }
 
 std::expected<ImportSnapshot, std::string> CustomChartImporter::Import() {
@@ -647,6 +596,14 @@ bool CustomChartImporter::ImportAll(std::vector<std::string> &active_hashes,
     return true;
 }
 
+void ApplySettingsOverrides(ImportedSong &song, const CustomChartSettings &settings) {
+    if (settings.override_side) song.side = *settings.override_side;
+    if (settings.override_background) {
+        song.bg = *settings.override_background;
+        song.bg_path.clear();
+    }
+}
+
 ImportedSong CustomChartImporter::MakeDefaultSong() const {
     ImportedSong song;
     song.artist = settings_.default_artist;
@@ -683,18 +640,33 @@ bool CustomChartImporter::ImportArcPackage(const std::string &path, const std::s
         AddDiagnostic(package_name, "index.yml", "SKIPPED_SONG", error);
         return false;
     }
-    const auto index = ParseArcIndex(index_text);
+    std::string yaml_error;
+    const auto index = ParseArcIndex(index_text, yaml_error);
+    if (index.empty()) {
+        AddDiagnostic(package_name, "index.yml", "SKIPPED_SONG",
+                      yaml_error.empty() ? "no level entries" : yaml_error);
+        return false;
+    }
     size_t ordinal = 0;
     for (const auto &item : index) {
         ++ordinal;
-        if (!item.type.empty() && item.type != "level") continue;
+        if (!item.type.empty() && item.type != "level") {
+            AddDiagnostic(package_name, item.identifier.empty() ? item.directory : item.identifier,
+                          "SKIPPED_SONG", "unsupported type: " + item.type);
+            continue;
+        }
         const std::string settings_path = JoinZipPath(item.directory, item.settings_file);
         std::string project_text;
         if (settings_path.empty() || !ReadEntryText(archive, FindCaseInsensitive(archive, settings_path), project_text, error)) {
             AddDiagnostic(package_name, item.identifier, "SKIPPED_SONG", "project: " + error);
             continue;
         }
-        const auto settings = ParseArcProject(project_text, settings_);
+        const auto settings = ParseArcProject(project_text, settings_, yaml_error);
+        if (settings.empty()) {
+            AddDiagnostic(package_name, item.identifier, "SKIPPED_SONG",
+                          "project: " + (yaml_error.empty() ? std::string("no charts") : yaml_error));
+            continue;
+        }
         ImportedSong song = MakeDefaultSong();
         song.source_id = item.identifier.empty() ? item.directory : item.identifier;
         song.id = MakeSongId(song.source_id, hash, settings_.fallback_song_id,
@@ -732,7 +704,15 @@ bool CustomChartImporter::ImportArcPackage(const std::string &path, const std::s
                 continue;
             }
             const std::string chart_out = cache_base + "/" + std::to_string(*slot) + ".aff";
-            if (!archive.ExtractToFile(*chart_entry, chart_out, error)) {
+            std::string aff_text;
+            if (!ReadEntryText(archive, chart_entry, aff_text, error)) {
+                AddDiagnostic(package_name, chart.chart_path, "SKIPPED_CHART", error);
+                continue;
+            }
+            ZipAffSource aff_files(archive, item.directory);
+            const auto normalized = aff::Normalize(aff_text, chart.chart_path, &aff_files);
+            RecordAffDiagnostics(package_name, song.id, chart.chart_path, normalized);
+            if (!WriteTextFile(chart_out, normalized.text, error)) {
                 AddDiagnostic(package_name, chart.chart_path, "SKIPPED_CHART", error);
                 continue;
             }
@@ -785,6 +765,11 @@ bool CustomChartImporter::ImportArcPackage(const std::string &path, const std::s
         if (defaulted_background) {
             AddDiagnostic(package_name, song.source_id, "DEFAULTED_FIELD", "background");
         }
+        if (Extension(audio_entry->name) != ".ogg") {
+            AddDiagnostic(package_name, song.source_id, "NON_OGG_AUDIO",
+                          "manual convert to OGG Vorbis");
+        }
+        ApplySettingsOverrides(song, settings_);
         songs_.push_back(std::move(song));
         AddDiagnostic(package_name, songs_.back().id, "LOADED", "arcpkg");
     }
@@ -948,7 +933,15 @@ bool CustomChartImporter::ImportRawZip(const std::string &path, const std::strin
         }
         for (const auto &[slot, entry] : charts) {
             const std::string chart_out = cache_base + "/" + std::to_string(slot) + ".aff";
-            if (!archive.ExtractToFile(*entry, chart_out, error)) {
+            std::string aff_text;
+            if (!ReadEntryText(archive, entry, aff_text, error)) {
+                AddDiagnostic(package_name, entry->name, "SKIPPED_CHART", error);
+                continue;
+            }
+            ZipAffSource aff_files(archive, prefix);
+            const auto normalized = aff::Normalize(aff_text, entry->name, &aff_files);
+            RecordAffDiagnostics(package_name, song.id, entry->name, normalized);
+            if (!WriteTextFile(chart_out, normalized.text, error)) {
                 AddDiagnostic(package_name, entry->name, "SKIPPED_CHART", error);
                 continue;
             }
@@ -993,12 +986,17 @@ bool CustomChartImporter::ImportRawZip(const std::string &path, const std::strin
         if (defaulted_background) {
             AddDiagnostic(package_name, song.source_id, "DEFAULTED_FIELD", "background");
         }
+        if (Extension(audio->name) != ".ogg") {
+            AddDiagnostic(package_name, song.source_id, "NON_OGG_AUDIO",
+                          "manual convert to OGG Vorbis");
+        }
         if (!value) {
             AddDiagnostic(package_name,
                           song.source_id,
                           "DEFAULTED_FIELD",
                           "metadata side=1 bg=base_conflict");
         }
+        ApplySettingsOverrides(song, settings_);
         songs_.push_back(std::move(song));
         AddDiagnostic(package_name, songs_.back().id, "LOADED", metadata_ok ? "raw_zip" : "raw_zip_fallback");
     }

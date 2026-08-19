@@ -75,6 +75,7 @@ bool ValidateInstallTargets() {
         !g_offsets.difficulty_availability ||
         !g_offsets.song_unlock_mask_check ||
         !g_offsets.content_availability ||
+        !g_offsets.play_launcher ||
         !g_offsets.chart_path ||
         !g_offsets.song_registry_global || !g_offsets.find_song_by_id) {
         ARC_LOGE("Incomplete custom-chart profile");
@@ -342,10 +343,17 @@ bool UnlockCustomDifficulty(uintptr_t song, unsigned int requested_difficulty) {
 }
 
 uint64_t DifficultyAvailabilityHook(uintptr_t song, uint64_t difficulty) {
-    if (difficulty == cfg::custom_charts::kBeyondDifficulty &&
-        IsCustomRuntimeSong(song) &&
-        UnlockCustomDifficulty(song, static_cast<unsigned int>(difficulty))) {
-        return 1;
+    if (IsCustomRuntimeSong(song)) {
+        std::string_view id;
+        if (difficulty >= cfg::custom_charts::kDifficultyCount || !ReadSongId(song, id)) {
+            return CALL_ORIG(DifficultyAvailabilityHook, song, difficulty);
+        }
+        const std::string path = cfg::custom_charts::LocalChartAssetPath(id, difficulty);
+        if (!CustomChartManager::Instance().ResolveAsset(path)) return 0;
+        if (difficulty == cfg::custom_charts::kBeyondDifficulty &&
+            UnlockCustomDifficulty(song, static_cast<unsigned int>(difficulty))) {
+            return 1;
+        }
     }
     return CALL_ORIG(DifficultyAvailabilityHook, song, difficulty);
 }
@@ -355,16 +363,80 @@ uint64_t SongUnlockMaskCheckHook(uintptr_t state, uintptr_t song) {
     return unlocked || IsCustomRuntimeSong(song);
 }
 
+bool CustomDifficultyHasChart(uintptr_t song, uint32_t difficulty) {
+    std::string_view id;
+    if (difficulty >= cfg::custom_charts::kDifficultyCount || !ReadSongId(song, id)) {
+        return false;
+    }
+    return CustomChartManager::Instance().ResolveAsset(
+               cfg::custom_charts::LocalChartAssetPath(id, difficulty)) != nullptr;
+}
+
+// song+0x1C0 is a song-level "remote download pack" bit. Preview BGM
+// (sub_9BCE10) prefixes the id with dl_ when it is set, and FMOD then
+// throws AudioProvider_error on the missing file. The play launcher
+// (C987A8) also uses it, together with ContentAvailability==1, to take
+// loc_C9940C immediately for PST/PRS placeholders. Raise the bit only
+// for that call and put the previous value back before returning.
+class ScopedCustomRemotePackFlag {
+public:
+    explicit ScopedCustomRemotePackFlag(uintptr_t song) {
+        if (!song) return;
+        const uintptr_t flag = song + cfg::custom_charts::kRemotePackFlagOffset;
+        if (flag < song || !mem::ProcMaps::IsWritable(flag, sizeof(uint8_t))) return;
+        const auto current = mem::RuntimeMemory::Process().Read<uint8_t>(flag);
+        if (!current) return;
+        saved_ = *current;
+        addr_ = flag;
+        if (saved_ != 1 &&
+            !mem::RuntimeMemory::Process().Write<uint8_t>(flag, 1).has_value()) {
+            addr_ = 0;
+            return;
+        }
+        active_ = true;
+    }
+
+    ~ScopedCustomRemotePackFlag() {
+        if (!active_ || !addr_) return;
+        if (saved_ != 1) {
+            mem::RuntimeMemory::Process().Write<uint8_t>(addr_, saved_);
+        }
+    }
+
+    ScopedCustomRemotePackFlag(const ScopedCustomRemotePackFlag &) = delete;
+    ScopedCustomRemotePackFlag &operator=(const ScopedCustomRemotePackFlag &) = delete;
+
+private:
+    uintptr_t addr_ = 0;
+    uint8_t saved_ = 0;
+    bool active_ = false;
+};
+
 uint64_t ContentAvailabilityHook(uintptr_t song,
                                  uint32_t difficulty,
                                  uint32_t state,
                                  uint32_t flags) {
-    // Necessary so SongCell/play launcher do not take the immediate
-    // loc_C9940C download branch for Beyond. Not sufficient to start play:
-    // chartExists still goes through sub_A74680, which for class 3 builds
-    // a writable-dir pack name instead of songs/{id}/3.aff.
-    if (IsCustomRuntimeSong(song)) return 0;
-    return CALL_ORIG(ContentAvailabilityHook, song, difficulty, state, flags);
+    // Playable custom charts return 0 so SongCell keeps start.png and the
+    // play launcher continues into the local chart. Placeholders return 1
+    // so Beyond (class 3) takes loc_C9940C. PST/PRS placeholders get that
+    // same dialog from PlayLauncherHook without leaving song+0x1C0 set.
+    if (!IsCustomRuntimeSong(song)) {
+        return CALL_ORIG(ContentAvailabilityHook, song, difficulty, state, flags);
+    }
+    if (CustomDifficultyHasChart(song, difficulty)) return 0;
+    return 1;
+}
+
+void PlayLauncherHook(uintptr_t context,
+                      uintptr_t song,
+                      uint32_t difficulty,
+                      uintptr_t extra,
+                      uint32_t flags,
+                      uintptr_t extra2) {
+    const bool placeholder = IsCustomRuntimeSong(song) &&
+                             !CustomDifficultyHasChart(song, difficulty);
+    const ScopedCustomRemotePackFlag dialog_gate(placeholder ? song : 0);
+    CALL_ORIG(PlayLauncherHook, context, song, difficulty, extra, flags, extra2);
 }
 
 std::string ChartPathHook(uintptr_t song, uint32_t difficulty) {
@@ -444,23 +516,8 @@ RuntimeSongDifficultyList SonglistDifficultyFilterHook(void *context,
         return result;
     }
 
-    bool custom_scope = ContainsCustomRuntimeSong(result);
-    if (!custom_scope &&
-        difficulty != static_cast<unsigned int>(cfg::custom_charts::kFutureDifficulty)) {
-        auto probe = CALL_ORIG(
-            SonglistDifficultyFilterHook,
-            context,
-            mode,
-            song_ids,
-            static_cast<unsigned int>(cfg::custom_charts::kFutureDifficulty),
-            group);
-        if (IsValidRuntimeList(probe)) {
-            custom_scope = ContainsCustomRuntimeSong(probe);
-            ::operator delete(probe.begin);
-        } else {
-            ARC_LOGE("Invalid future-difficulty scope probe");
-        }
-    }
+    bool custom_scope = ContainsCustomRuntimeSong(result) ||
+                        CustomChartManager::Instance().HasSongs();
     if (!custom_scope) return result;
 
     std::vector<RuntimeSongDifficultyPair> additions;
@@ -577,6 +634,9 @@ _Unwind_Reason_Code CollectThrowFrame(_Unwind_Context *context, void *argument) 
 AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     if (!g_open_original) return nullptr;
     if (!filename) return g_open_original(manager, filename, mode);
+
+    ARC_LOGD("AAssetManager_open %s", filename);
+
     const std::string_view path(filename);
     auto &charts = CustomChartManager::Instance();
 
@@ -822,6 +882,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
     uintptr_t difficulty_availability = 0;
     uintptr_t song_unlock_mask_check = 0;
     uintptr_t content_availability = 0;
+    uintptr_t play_launcher = 0;
     uintptr_t chart_path = 0;
     uintptr_t fmod_load_bgm = 0;
     auto &hook_manager = HookManager::Instance();
@@ -835,7 +896,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         RestoreAssetHooks(dev, inode);
         return false;
     }
-    std::array<HookManager::InlineHookRegistration, 7> registrations = {
+    std::array<HookManager::InlineHookRegistration, 8> registrations = {
         hook_manager.RegisterInlineHookSymbol(cxa_throw,
                                               cfg::module::kLibName,
                                               cfg::custom_charts::kCxaThrowSymbol,
@@ -868,6 +929,11 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
                                         cfg::custom_charts::kSigContentAvailability,
                                         ContentAvailabilityHook,
                                         "content availability"),
+        hook_manager.RegisterInlineHook(play_launcher,
+                                        offsets_.play_launcher,
+                                        cfg::custom_charts::kSigPlayLauncher,
+                                        PlayLauncherHook,
+                                        "play launcher"),
         hook_manager.RegisterInlineHook(chart_path,
                                         offsets_.chart_path,
                                         cfg::custom_charts::kSigChartPath,

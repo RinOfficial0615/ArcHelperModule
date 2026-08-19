@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -90,6 +91,18 @@ int main(int argc, char **argv) {
     assert(normalized["UnknownFeature"]["keep"] == true);
     assert(normalized["Logging"]["logcat"]["keep"] == "yes");
     assert(normalized["Logging"]["file"]["enabled"] == true);
+
+    config.EnsureObject("CustomCharts", "overrides");
+    assert(config.Save());
+    normalized = ReadJson(root / "config.json");
+    assert(normalized["CustomCharts"]["overrides"].is_object());
+    assert(!config.TryRead<int>("CustomCharts", "overrides", "side", 0, 2));
+    normalized["CustomCharts"]["overrides"]["side"] = 0;
+    WriteText(root / "config.json", normalized.dump());
+    config.ResetForTesting(root.string());
+    assert(config.Load());
+    const auto override_side = config.TryRead<int>("CustomCharts", "overrides", "side", 0, 2);
+    assert(override_side && *override_side == 0);
 
     WriteText(root / "config.json", "{broken");
     config.ResetForTesting(root.string());

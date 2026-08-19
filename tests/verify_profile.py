@@ -33,6 +33,9 @@ expected = {
     0xD988F4: "ffc301d1fd7b04a9f65705a9f44f06a9",
     # Remote-pack predicate. 1 + Beyond (class 3) selects img/download.png.
     0x121E9FC: "fd7bbda9f65701a9f44f02a9fd030091",
+    # Play launcher. Immediate Download-song dialog when avail==1 and
+    # (Beyond or song+0x1C0). song+0x1C0 also switches preview to dl_*.
+    0xC987A8: "fd7bbaa9fc6f01a9fa6702a9f85f03a9",
     # Chart path. Beyond/remote uses writable {id}_{n} pack, not songs/{id}/n.aff.
     0xA74680: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
     # Runtime song registry lookup used to recover the parsed custom-song

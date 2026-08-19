@@ -22,6 +22,8 @@ Language: [English](project-structure.md) | 简体中文
 - `src/features/SslPinningBypass.{hpp,cpp}` — SSL 证书绑定移除（两处字节补丁）
 - `src/manager/CustomChartManager.{hpp,cpp}` — 发布并读取不可变自定义谱面快照
 - `src/manager/custom_chart/CustomChartImporter.{hpp,cpp}` — `.arcpkg`/raw ZIP 解析与有界缓存抽取
+- `src/manager/custom_chart/AffNormalizer.{hpp,cpp}` — 把 ArcCreate AFF 改写成官方 6.16.2c token
+- `src/manager/custom_chart/AffOfficialParser.{hpp,cpp}` — 宿主机上的官方 TokenLexer/parseNote 校验（不链进模块）
 - `src/manager/custom_chart/CustomChartAssetIndex.{hpp,cpp}` — 逻辑资源路径、APK 时代别名和目录查询
 - `src/manager/custom_chart/CustomChartSnapshot.{hpp,cpp}` — 不可变歌曲模型与纯 songlist 合并
 - `src/manager/custom_chart/CustomChartReportWriter.{hpp,cpp}` — manifest/report 写入和孤儿缓存提交门
@@ -45,6 +47,8 @@ Language: [English](project-structure.md) | 简体中文
 - `third_party/libcxx/` — Android libc++ 子模块
 - `third_party/lsplt/` — LSPlt 子模块
 - `third_party/magic_enum/` — 编译期枚举反射子模块
+- `third_party/rapidyaml/` — `.arcpkg` 索引用的 YAML 解析器
+- `third_party/stb/` — stb_image / write / resize2，把自定义背景收成官方尺寸
 - `third_party/shadowhook/` — ShadowHook v2.0.1 子模块；构建时应用 `patches/lsplt-live-plt.patch`
 - `module/shadowhook_nothing.c` — ShadowHook linker 扫描所需的独立 helper ELF
 - `third_party/zygisk.hpp` — Zygisk API 头文件

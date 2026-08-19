@@ -181,6 +181,21 @@ nlohmann::json &ConfigManager::GetObjectLocked(std::string_view section,
     return subsection_object;
 }
 
+const nlohmann::json *ConfigManager::FindObjectLocked(std::string_view section,
+                                                      std::string_view subsection) const {
+    const auto section_it = data_.find(std::string(section));
+    if (section_it == data_.end() || !section_it->is_object()) return nullptr;
+    if (subsection.empty()) return &*section_it;
+    const auto subsection_it = section_it->find(std::string(subsection));
+    if (subsection_it == section_it->end() || !subsection_it->is_object()) return nullptr;
+    return &*subsection_it;
+}
+
+void ConfigManager::EnsureObject(std::string_view section, std::string_view subsection) {
+    std::scoped_lock lock(mutex_);
+    GetObjectLocked(section, subsection);
+}
+
 #ifdef ARC_HELPER_HOST_TEST
 void ConfigManager::SetRootDirForTesting(const std::string &root_dir) {
     std::scoped_lock lock(mutex_);

@@ -22,6 +22,8 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/features/SslPinningBypass.{hpp,cpp}` — SSL pin removal (two byte-patches)
 - `src/manager/CustomChartManager.{hpp,cpp}` — publishes and reads the immutable custom-chart snapshot
 - `src/manager/custom_chart/CustomChartImporter.{hpp,cpp}` — `.arcpkg`/raw ZIP parsing and bounded cache extraction
+- `src/manager/custom_chart/AffNormalizer.{hpp,cpp}` — rewrite ArcCreate AFF into official 6.16.2c tokens
+- `src/manager/custom_chart/AffOfficialParser.{hpp,cpp}` — host-side official TokenLexer/parseNote check (not linked into the module)
 - `src/manager/custom_chart/CustomChartAssetIndex.{hpp,cpp}` — canonical logical asset paths and APK-era aliases
 - `src/manager/custom_chart/CustomChartSnapshot.{hpp,cpp}` — immutable songlist model and pure official-songlist merge
 - `src/manager/custom_chart/CustomChartReportWriter.{hpp,cpp}` — manifest/report writes and orphan-cache commit gate
@@ -45,6 +47,8 @@ Language: English | [简体中文](project-structure_CN.md)
 - `third_party/libcxx/` — Android libc++ submodule
 - `third_party/lsplt/` — LSPlt submodule
 - `third_party/magic_enum/` — compile-time enum reflection submodule
+- `third_party/rapidyaml/` — YAML parser used by `.arcpkg` index files
+- `third_party/stb/` — stb_image / write / resize2 for official-size backgrounds
 - `third_party/shadowhook/` — ShadowHook v2.0.1 submodule; `patches/lsplt-live-plt.patch` is staged during builds
 - `module/shadowhook_nothing.c` — required independent ShadowHook linker-scan helper ELF
 - `third_party/zygisk.hpp` — Zygisk API header
