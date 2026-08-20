@@ -30,15 +30,11 @@ std::string Trim(std::string_view value) {
     return std::string(value.substr(b, e - b));
 }
 
-std::string Lower(std::string value) {
-    for (char &c : value) {
-        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-    }
-    return value;
-}
-
-bool StartsWith(std::string_view text, std::string_view prefix) {
-    return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
+std::string Lower(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return std::tolower(c);
+    });
+    return s;
 }
 
 std::string StripSemicolon(std::string line) {
@@ -359,6 +355,13 @@ std::string RewriteTiming(Call call, int line, std::vector<Diagnostic> &diagnost
     }
     const bool was_int_bpm = LooksLikeInteger(call.args[1]);
     const bool was_int_divisor = LooksLikeInteger(call.args[2]);
+    // LogicChart::setupTimingBars steps by (60000/bpm)*beats. A zero
+    // beats value never advances the cursor and hangs chart load.
+    if (std::fabs(divisor) < 1e-12) {
+        divisor = 4.0;
+        AddDiag(diagnostics, line, "timing", "REWRITTEN",
+                "zero timing beats clamped to 4.00");
+    }
     call.args[1] = FormatFloat(bpm);
     call.args[2] = FormatFloat(divisor);
     if (was_int_bpm || was_int_divisor) {
@@ -432,8 +435,8 @@ std::optional<std::string> RewriteScenecontrol(Call call, int line,
 }
 
 std::optional<std::string> OfficialAngleFromProperty(std::string_view prop) {
-    const bool x = StartsWith(prop, "anglex=");
-    const bool y = StartsWith(prop, "angley=");
+    const bool x = prop.starts_with("anglex=");
+    const bool y = prop.starts_with("angley=");
     if (!x && !y) return std::nullopt;
     double degrees = 0;
     if (!ParseDouble(prop.substr(7), degrees)) return std::string{};
@@ -495,17 +498,13 @@ std::string RewriteTimingGroup(Call call, int line, std::vector<Diagnostic> &dia
     return out;
 }
 
-std::string OfficialIdentOrNone(std::string_view raw) {
-    std::string text = Unquote(raw);
-    const size_t dot = text.find('.');
-    if (dot != std::string::npos) text.resize(dot);
-    if (text.empty()) return "none";
-    const unsigned char first = static_cast<unsigned char>(text[0]);
-    if (!std::isalpha(first) && text[0] != '_') return "none";
-    for (const unsigned char c : text) {
-        if (!std::isalnum(c) && c != '_') return "none";
-    }
-    return text;
+bool IsTraceFlag(std::string_view raw) {
+    const std::string text = Lower(Unquote(raw));
+    return text == "true" || text == "false" || text == "designant";
+}
+
+bool SuffixHasArcTap(std::string_view suffix) {
+    return suffix.find("arctap(") != std::string_view::npos;
 }
 
 std::string EnsureFloatArg(std::string token, int line, std::string_view item,
@@ -542,12 +541,58 @@ std::string RewriteTimedEvent(Call call, int line, std::vector<Diagnostic> &diag
             call.args[5] = EnsureFloatArg(call.args[5], line, "arc", diagnostics);
             call.args[6] = EnsureFloatArg(call.args[6], line, "arc", diagnostics);
         }
-        if (call.args.size() >= 9) {
-            const std::string sfx = OfficialIdentOrNone(call.args[8]);
-            if (sfx != call.args[8]) {
-                AddDiag(diagnostics, line, call.args[8].empty() ? "sfx" : call.args[8],
-                        "REWRITTEN", "official arc sfx identifier");
-                call.args[8] = sfx;
+        // Empty sfx (`0,,true`) can leave the istrace flag in the sfx slot.
+        if (call.args.size() >= 9 && IsTraceFlag(call.args[8])) {
+            call.args.insert(call.args.begin() + 8, "none");
+            AddDiag(diagnostics, line, "sfx", "REWRITTEN",
+                    "inserted missing arc sfx identifier");
+        }
+        if (call.args.size() >= 9 && call.args[8] != "none") {
+            // Custom hitsounds (`metal.wav`, `arc_wav`) are not in the APK
+            // audio table; FMOD throws AudioProvider_error while loading.
+            AddDiag(diagnostics, line, call.args[8].empty() ? "sfx" : call.args[8],
+                    "REWRITTEN", "official arc sfx identifier");
+            call.args[8] = "none";
+        }
+        const bool has_arctap = SuffixHasArcTap(call.suffix);
+        if (has_arctap) {
+            if (call.args.size() < 10) {
+                while (call.args.size() < 9) call.args.push_back("none");
+                call.args.push_back("true");
+                AddDiag(diagnostics, line, "arc", "REWRITTEN",
+                        "arctap carrier missing istrace");
+            } else {
+                const std::string flag = Lower(call.args[9]);
+                if (flag != "true" && flag != "designant") {
+                    AddDiag(diagnostics, line, "arc", "REWRITTEN",
+                            "arctap carrier forced to trace");
+                    call.args[9] = "true";
+                }
+            }
+            int64_t t1 = 0, t2 = 0;
+            const bool have_t = call.args.size() >= 2 && ParseInt(call.args[0], t1) &&
+                                ParseInt(call.args[1], t2);
+            if (have_t && t2 <= t1) {
+                // setupArc interpolates arctaps by (t-t1)/(t2-t1); zero
+                // duration yields NaN positions so the notes cannot be hit.
+                AddDiag(diagnostics, line, "arc", "REWRITTEN",
+                        "zero-length arctap carrier extended");
+                t2 = t1 + 1;
+                call.args[1] = std::to_string(t2);
+            }
+            double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+            const bool same_point = have_t && call.args.size() >= 7 &&
+                                    ParseDouble(call.args[2], x1) &&
+                                    ParseDouble(call.args[3], x2) &&
+                                    ParseDouble(call.args[5], y1) &&
+                                    ParseDouble(call.args[6], y2) &&
+                                    x1 == x2 && y1 == y2;
+            // RenderArcNote::init skips mesh generation for 1ms same-point
+            // traces. Official 1ms arctap ticks always change X or Y.
+            if (same_point && t2 - t1 <= 1) {
+                AddDiag(diagnostics, line, "arc", "REWRITTEN",
+                        "same-point arctap carrier duration extended");
+                call.args[1] = std::to_string(t1 + 2);
             }
         }
         if (call.args.size() > 11) {
@@ -680,7 +725,7 @@ std::string NormalizeDocument(std::string_view text, std::string_view source_nam
                 continue;
             }
             const bool looks_like_event = trimmed.find('(') != std::string::npos ||
-                                          StartsWith(trimmed, "};");
+                                          trimmed.starts_with("};");
             if (looks_like_event) {
                 append("AudioOffset:0");
                 append("-");
@@ -715,7 +760,7 @@ std::string NormalizeDocument(std::string_view text, std::string_view source_nam
             AddDiag(*state.diagnostics, line_number, trimmed, "DROPPED_COMMAND", "comment");
             continue;
         }
-        if (StartsWith(trimmed, "};")) {
+        if (trimmed.starts_with("};")) {
             if (open_groups > 0) --open_groups;
             append("};");
             continue;

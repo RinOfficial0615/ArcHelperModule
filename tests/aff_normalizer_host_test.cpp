@@ -127,5 +127,35 @@ int main() {
         assert(Contains(result.text, "timing(0,120.00,4.00);"));
         assert(HasStatus(result, "REWRITTEN"));
     }
+
+    {
+        const auto result = Normalize(
+            "AudioOffset:0\n-\n"
+            "timing(0,205.00,4.00);\n"
+            "timing(93512,102.50,0.00);\n"
+            "timing(1490,99999.00,0.00);\n");
+        assert(Contains(result.text, "timing(93512,102.50,4.00);"));
+        assert(Contains(result.text, "timing(1490,99999.00,4.00);"));
+        assert(!Contains(result.text, ",0.00);"));
+        assert(HasStatus(result, "REWRITTEN"));
+    }
+
+    {
+        const auto result = Normalize(
+            "AudioOffset:0\n-\n"
+            "timing(0,185.00,4.00);\n"
+            "arc(973,974,0.50,0.50,s,1.00,1.00,0,,true)[arctap(973)];\n"
+            "arc(1622,1623,0.50,0.50,s,0.00,0.00,0,,true)[arctap(1622)];\n"
+            "arc(878,878,0.50,0.50,sisi,1.00,1.00,0,none,true)[arctap(878)];\n"
+            "arc(20,30,0.00,1.00,s,0.00,0.00,0,arc_wav,false);\n"
+            "arc(40,50,0.00,1.00,s,0.00,0.00,0,metal.wav,false);\n");
+        assert(Contains(result.text, "arc(973,975,0.50,0.50,s,1.00,1.00,0,none,true)[arctap(973)];"));
+        assert(Contains(result.text, "arc(1622,1624,0.50,0.50,s,0.00,0.00,0,none,true)[arctap(1622)];"));
+        assert(Contains(result.text, "arc(878,880,0.50,0.50,sisi,1.00,1.00,0,none,true)[arctap(878)];"));
+        assert(Contains(result.text, ",none,false);"));
+        assert(!Contains(result.text, "arc_wav"));
+        assert(!Contains(result.text, "metal"));
+        assert(HasStatus(result, "REWRITTEN"));
+    }
     return 0;
 }

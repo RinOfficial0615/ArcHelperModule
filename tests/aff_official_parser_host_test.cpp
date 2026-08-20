@@ -80,7 +80,22 @@ int main() {
         assert(!Contains(normalized.text, "angley-"));
         assert(Contains(normalized.text, "[arctap(5)];"));
         assert(Contains(normalized.text, ",none,true,4.00)"));
-        assert(Contains(normalized.text, ",metal,false)"));
+        assert(Contains(normalized.text, ",none,false)"));
+        assert(!Contains(normalized.text, "metal"));
+    }
+
+    {
+        const auto normalized = Normalize(
+            "AudioOffset:0\n-\n"
+            "timing(93512,102.50,0.00);\n"
+            "arc(973,974,0.50,0.50,s,1.00,1.00,0,,true)[arctap(973)];\n"
+            "arc(878,878,0.50,0.50,s,0.00,0.00,0,arc_wav,true)[arctap(878)];\n");
+        const auto check = CheckOfficial(normalized.text);
+        assert(check.ok);
+        assert(Contains(normalized.text, "timing(93512,102.50,4.00);"));
+        assert(Contains(normalized.text, "[arctap(973)];"));
+        assert(Contains(normalized.text, "[arctap(878)];"));
+        assert(!Contains(normalized.text, "arc_wav"));
     }
     return 0;
 }
