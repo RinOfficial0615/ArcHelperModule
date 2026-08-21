@@ -286,6 +286,32 @@ static_assert(offsetof(SongDifficulty<V::k6162c>, rating_class) == 0x124);
 static_assert(sizeof(SongDifficulty<V::k6162c>) == 0x128);
 static_assert(offsetof(SongRegistryOwner<V::k6162c>, registry) == 32);
 
+// 6.16.8c: game logic is byte-identical to 6.16.2c (verified by cross-version
+// function comparison), so every consumed layout offset must carry over.
+static_assert(offsetof(Timer<V::k6168c>, msA) == 32);
+static_assert(offsetof(Timer<V::k6168c>, flag) == 45);
+static_assert(offsetof(Gameplay<V::k6168c>, timer) == 48);
+static_assert(offsetof(Gameplay<V::k6168c>, note_begin) == 160);
+static_assert(offsetof(Gameplay<V::k6168c>, note_end) == 168);
+static_assert(offsetof(Note<V::k6168c>, timeStart) == 24);
+static_assert(offsetof(Note<V::k6168c>, playSceneCtx) == 64);
+static_assert(offsetof(Note<V::k6168c>, runtimeX) == 204);
+static_assert(offsetof(Note<V::k6168c>, runtimeY) == 208);
+static_assert(offsetof(ArcNote<V::k6168c>, isVoid) == 156);
+static_assert(offsetof(HoldNote<V::k6168c>, headActivated) == 160);
+static_assert(offsetof(TouchLike<V::k6168c>, ndcX) == 28);
+static_assert(offsetof(HttpRequest<V::k6168c>, type) == 12);
+static_assert(offsetof(HttpResponse<V::k6168c>, request) == 16);
+static_assert(offsetof(HttpResponse<V::k6168c>, statusCode) == 80);
+
+static_assert(offsetof(Song<V::k6168c>, remote_pack) == 0x1C0);
+static_assert(offsetof(Song<V::k6168c>, difficulty_pointers) == 0x228);
+static_assert(offsetof(Song<V::k6168c>, difficulty_presence) == 0x250);
+static_assert(offsetof(SongDifficulty<V::k6168c>, lock) == 0xF0);
+static_assert(offsetof(SongDifficulty<V::k6168c>, rating_class) == 0x124);
+static_assert(sizeof(SongDifficulty<V::k6168c>) == 0x128);
+static_assert(offsetof(SongRegistryOwner<V::k6168c>, registry) == 32);
+
 } // namespace verify
 
 } // namespace arc_helper::cfg::layouts

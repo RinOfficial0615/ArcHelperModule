@@ -42,7 +42,7 @@ inline constexpr uint64_t kMaxVirtualAssetBytes = 128ull * 1024 * 1024;
 inline constexpr uint64_t kMaxOfficialAssetBytes = 64ull * 1024 * 1024;
 
 // Offsets computed from `layouts::*` mirror structs (see `GameStructs.hpp`).
-// Confirmed for the supported custom-chart build (6.16.2c).
+// Confirmed shared through 6.16.8c (game logic byte-identical to 6.16.2c).
 constexpr GameVersionId kLayoutVer = GameVersionId::k6162c;
 inline constexpr size_t kDifficultyPointersOffset =
     offsetof(layouts::Song<kLayoutVer>, difficulty_pointers);
@@ -102,7 +102,6 @@ inline constexpr int kSongDate = 0;
 
 // Runtime patch and hook signatures.
 inline constexpr uint32_t kNopInstruction = 0xD503201F;
-inline constexpr uint32_t kExpectedSonglistLoaderCall = 0x94140479;
 inline constexpr uint32_t kExpectedDigestSizeGuard = 0x540013A1;
 inline constexpr uint32_t kExpectedDigestCompareGuard = 0x350012C0;
 

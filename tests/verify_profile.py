@@ -7,51 +7,90 @@ import zipfile
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SO = ROOT.parent / "6.16.2c" / "libcocos2dcpp.so"
-EXPECTED_SHA256 = "ae723637c967e063a5fa0a906325acf2d030b42143613abefd26a11b9002bdcd"
 
-expected = {
-    0xBEE260: "e80f19fcfd7b01a9fc6f02a9fa6703a9",
-    0x184FBD4: "ff4306d1ea8b00fde923126dfd7b13a9",
-    0x745BC4: "ff8302d1fd7b04a9fb2b00f9fa6706a9",
-    0x1361DE4: "ff0302d1fd7b04a9f85f05a9f65706a9",
-    0x103A07C: "ff8302d1e81b00fdfd7b04a9fc6f05a9",
-    0x14A948C: "ffc301d1e81b00fdfd7b04a9f65705a9",
-    0xA193CC: "ff0302d1e81b00fdfd7b04a9f85f05a9",
-    0xE59C90: "ffc300d1fd7b01a9f44f02a9fd430091",
-    0x17E9698: "ff8301d1fd7b02a9f71b00f9f65704a9",
-    0x778FD0: "ff0304d1fd7b0fa9fdc30391a20f39a9",
-    # 6.16.2c songlist data loader: AAssetManager_open BL at 0x142CFAC,
-    # whose return address is the exact caller 0x142CFB0.
-    0x142CFAC: "79041494f40300aae00700b4e00314aa",
-    # Song-list builder. It filters candidate songs by the exact current
-    # difficulty and stores each result as a 16-byte (song, difficulty) pair.
-    0x12638FC: "ff8303d1fd7b08a9fc6f09a9fa670aa9",
-    # Final difficulty availability predicate used by song cells and selection.
-    0xE162C8: "ff8301d1fd7b02a9f85f03a9f65704a9",
-    # Song-level unlock mask predicate shared by song cells and play entry.
-    0xD988F4: "ffc301d1fd7b04a9f65705a9f44f06a9",
-    # Remote-pack predicate. 1 + Beyond (class 3) selects img/download.png.
-    0x121E9FC: "fd7bbda9f65701a9f44f02a9fd030091",
-    # Play launcher. Immediate Download-song dialog when avail==1 and
-    # (Beyond or song+0x1C0). song+0x1C0 also switches preview to dl_*.
-    0xC987A8: "fd7bbaa9fc6f01a9fa6702a9f85f03a9",
-    # Chart path. Beyond/remote uses writable {id}_{n} pack, not songs/{id}/n.aff.
-    0xA74680: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
-    # Runtime song registry lookup used to recover the parsed custom-song
-    # object after the official unlock filter omits unknown server IDs.
-    0xCADFA4: "fd7bbea9f30b00f9fd030091f30300aa",
-    # Separate integrity/existence probe; it must not be accepted as loader.
-    0xB5E240: "d43f3794600000b4d63f379420008052081740f9a9835ff81f0109eb41010054",
-}
-patches = {
-    0xBEE748: 0x11019148,
-    0xBEE800: 0x11019148,
-    0xBEE850: 0x11032148,
-    # Songlist-only digest failure branches. Runtime patching replaces these
-    # with NOP while leaving packlist and unlocks validation intact.
-    0x100F814: 0x540013A1,
-    0x100F830: 0x350012C0,
+# First 16 bytes at every hooked/patched profile target, plus the exact words
+# at runtime patch sites. Addresses are per game build.
+PROFILES = {
+    "6.16.2c": {
+        "so": ROOT.parent / "6.16.2c" / "libcocos2dcpp.so",
+        "sha256": "ae723637c967e063a5fa0a906325acf2d030b42143613abefd26a11b9002bdcd",
+        "expected": {
+            0xBEE260: "e80f19fcfd7b01a9fc6f02a9fa6703a9",
+            0x184FBD4: "ff4306d1ea8b00fde923126dfd7b13a9",
+            0x745BC4: "ff8302d1fd7b04a9fb2b00f9fa6706a9",
+            0x1361DE4: "ff0302d1fd7b04a9f85f05a9f65706a9",
+            0x103A07C: "ff8302d1e81b00fdfd7b04a9fc6f05a9",
+            0x14A948C: "ffc301d1e81b00fdfd7b04a9f65705a9",
+            0xA193CC: "ff0302d1e81b00fdfd7b04a9f85f05a9",
+            0xE59C90: "ffc300d1fd7b01a9f44f02a9fd430091",
+            0x17E9698: "ff8301d1fd7b02a9f71b00f9f65704a9",
+            0x778FD0: "ff0304d1fd7b0fa9fdc30391a20f39a9",
+            # Songlist data loader: AAssetManager_open BL at 0x142CFAC,
+            # whose return address is the exact caller 0x142CFB0.
+            0x142CFAC: "79041494f40300aae00700b4e00314aa",
+            # Song-list builder. It filters candidate songs by the exact current
+            # difficulty and stores each result as a 16-byte (song, difficulty) pair.
+            0x12638FC: "ff8303d1fd7b08a9fc6f09a9fa670aa9",
+            # Final difficulty availability predicate used by song cells and selection.
+            0xE162C8: "ff8301d1fd7b02a9f85f03a9f65704a9",
+            # Song-level unlock mask predicate shared by song cells and play entry.
+            0xD988F4: "ffc301d1fd7b04a9f65705a9f44f06a9",
+            # Remote-pack predicate. 1 + Beyond (class 3) selects img/download.png.
+            0x121E9FC: "fd7bbda9f65701a9f44f02a9fd030091",
+            # Play launcher. Immediate Download-song dialog when avail==1 and
+            # (Beyond or song+0x1C0). song+0x1C0 also switches preview to dl_*.
+            0xC987A8: "fd7bbaa9fc6f01a9fa6702a9f85f03a9",
+            # Chart path. Beyond/remote uses writable {id}_{n} pack, not songs/{id}/n.aff.
+            0xA74680: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
+            # Runtime song registry lookup used to recover the parsed custom-song
+            # object after the official unlock filter omits unknown server IDs.
+            0xCADFA4: "fd7bbea9f30b00f9fd030091f30300aa",
+            # Separate integrity/existence probe; it must not be accepted as loader.
+            0xB5E240: "d43f3794600000b4d63f379420008052081740f9a9835ff81f0109eb41010054",
+        },
+        "patches": {
+            0xBEE748: 0x11019148,
+            0xBEE800: 0x11019148,
+            0xBEE850: 0x11032148,
+            # Songlist-only digest failure branches. Runtime patching replaces these
+            # with NOP while leaving packlist and unlocks validation intact.
+            0x100F814: 0x540013A1,
+            0x100F830: 0x350012C0,
+        },
+    },
+    "6.16.8c": {
+        "so": ROOT.parent / "6.16.8c" / "libcocos2dcpp.so",
+        "sha256": "088053152c407df7dfd9cba20bf30041470f940b317e0cf8b048ea2cddca47a3",
+        "expected": {
+            0xD7A8D4: "e80f19fcfd7b01a9fc6f02a9fa6703a9",
+            0xD4F330: "ff4306d1ea8b00fde923126dfd7b13a9",
+            0xDA6D04: "ff8302d1fd7b04a9fb2b00f9fa6706a9",
+            0x979CD0: "ff0302d1fd7b04a9f85f05a9f65706a9",
+            0x1401F98: "ff8302d1e81b00fdfd7b04a9fc6f05a9",
+            0xB79F1C: "ffc301d1e81b00fdfd7b04a9f65705a9",
+            0xB4D628: "ff0302d1e81b00fdfd7b04a9f85f05a9",
+            0x11F1AC4: "ffc300d1fd7b01a9f44f02a9fd430091",
+            0xFA5D40: "ff8301d1fd7b02a9f71b00f9f65704a9",
+            0x750734: "ff0304d1fd7b0fa9fdc30391a20f39a9",
+            # Songlist data loader: AAssetManager_open BL at 0x1709D94, whose
+            # return address is the exact caller 0x1709D98.
+            0x1709D94: "eb9d0894f40300aae00700b4e00314aa",
+            0xD3AF00: "ff8303d1fd7b08a9fc6f09a9fa670aa9",
+            0xE8792C: "ff8301d1fd7b02a9f85f03a9f65704a9",
+            0x1068020: "ffc301d1fd7b04a9f65705a9f44f06a9",
+            0xF64A90: "fd7bbda9f65701a9f44f02a9fd030091",
+            0xA1F1A0: "fd7bbaa9fc6f01a9fa6702a9f85f03a9",
+            0xDA71E8: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
+            0xC05E74: "fd7bbea9f30b00f9fd030091f30300aa",
+        },
+        "patches": {
+            0xD7ADBC: 0x11019148,
+            0xD7AE74: 0x11019148,
+            0xD7AEC4: 0x11032148,
+            0x77AE2C: 0x540013A1,
+            0x77AE48: 0x350012C0,
+        },
+    },
 }
 
 
@@ -88,37 +127,49 @@ def elf_dynamic_symbols(elf: bytes) -> dict[str, tuple[int, int, int]]:
     return symbols
 
 
-data = SO.read_bytes()
-actual_sha256 = hashlib.sha256(data).hexdigest()
-assert actual_sha256 == EXPECTED_SHA256, (actual_sha256, EXPECTED_SHA256)
-symbols = elf_dynamic_symbols(data)
-setter_symbol = symbols.get("Java_low_moe_AppActivity_setAppVersion")
-assert setter_symbol is not None, "setAppVersion ELF dynamic symbol missing"
-assert setter_symbol[2] & 0x0F == 2 and setter_symbol[2] >> 4 == 1, setter_symbol
-assert setter_symbol[1] > 0, setter_symbol
-cxa_throw_symbol = symbols.get("__cxa_throw")
-assert cxa_throw_symbol is not None, "__cxa_throw ELF dynamic symbol missing"
-assert cxa_throw_symbol[2] & 0x0F == 2 and cxa_throw_symbol[2] >> 4 == 1, cxa_throw_symbol
-assert cxa_throw_symbol[1] > 0, cxa_throw_symbol
-cxa_throw_signature = bytes.fromhex("3f2303d5fd7bbca9f70b00f9f65702a9")
-assert data[
-    cxa_throw_symbol[0] : cxa_throw_symbol[0] + len(cxa_throw_signature)
-] == cxa_throw_signature
-for offset, hex_bytes in expected.items():
-    value = bytes.fromhex(hex_bytes)
-    assert data[offset : offset + len(value)] == value, hex(offset)
-for offset, instruction in patches.items():
-    assert int.from_bytes(data[offset : offset + 4], "little") == instruction, hex(offset)
+def verify_profile(version: str, spec: dict) -> None:
+    so: pathlib.Path = spec["so"]
+    data = so.read_bytes()
+    actual_sha256 = hashlib.sha256(data).hexdigest()
+    assert actual_sha256 == spec["sha256"], (version, actual_sha256, spec["sha256"])
+    symbols = elf_dynamic_symbols(data)
+    setter_symbol = symbols.get("Java_low_moe_AppActivity_setAppVersion")
+    assert setter_symbol is not None, f"{version}: setAppVersion ELF dynamic symbol missing"
+    assert setter_symbol[2] & 0x0F == 2 and setter_symbol[2] >> 4 == 1, setter_symbol
+    assert setter_symbol[1] > 0, setter_symbol
+    cxa_throw_symbol = symbols.get("__cxa_throw")
+    assert cxa_throw_symbol is not None, f"{version}: __cxa_throw ELF dynamic symbol missing"
+    assert cxa_throw_symbol[2] & 0x0F == 2 and cxa_throw_symbol[2] >> 4 == 1, cxa_throw_symbol
+    assert cxa_throw_symbol[1] > 0, cxa_throw_symbol
+    cxa_throw_signature = bytes.fromhex("3f2303d5fd7bbca9f70b00f9f65702a9")
+    assert data[
+        cxa_throw_symbol[0] : cxa_throw_symbol[0] + len(cxa_throw_signature)
+    ] == cxa_throw_signature
+    for offset, hex_bytes in spec["expected"].items():
+        value = bytes.fromhex(hex_bytes)
+        assert data[offset : offset + len(value)] == value, (version, hex(offset))
+    for offset, instruction in spec["patches"].items():
+        assert int.from_bytes(data[offset : offset + 4], "little") == instruction, (
+            version,
+            hex(offset),
+        )
 
-print(f"verified profile against {SO.name} sha256={actual_sha256}")
-print(
-    "verified setAppVersion dynsym "
-    f"value=0x{setter_symbol[0]:x} size={setter_symbol[1]}"
-)
-print(
-    "verified __cxa_throw dynsym "
-    f"value=0x{cxa_throw_symbol[0]:x} size={cxa_throw_symbol[1]}"
-)
+    print(f"[{version}] verified profile against {so.name} sha256={actual_sha256}")
+    print(
+        f"[{version}] verified setAppVersion dynsym "
+        f"value=0x{setter_symbol[0]:x} size={setter_symbol[1]}"
+    )
+    print(
+        f"[{version}] verified __cxa_throw dynsym "
+        f"value=0x{cxa_throw_symbol[0]:x} size={cxa_throw_symbol[1]}"
+    )
+
+
+for version, spec in PROFILES.items():
+    if spec["so"].is_file():
+        verify_profile(version, spec)
+    else:
+        print(f"[{version}] skipped, {spec['so'].name} not present")
 
 APK = ROOT / ".tmp" / "arcaea_6.16.2c_arc_helper_diag.apk"
 if APK.is_file():

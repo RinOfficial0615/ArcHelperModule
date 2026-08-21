@@ -85,10 +85,11 @@ bool ValidateInstallTargets() {
     const uintptr_t loader_call = g_lib_base + g_offsets.songlist_asset_loader_caller - sizeof(uint32_t);
     const uintptr_t size_guard = g_lib_base + g_offsets.songlist_digest_size_guard;
     const uintptr_t compare_guard = g_lib_base + g_offsets.songlist_digest_compare_guard;
-    if (!mem::ProcMaps::IsReadable(loader_call, sizeof(uint32_t)) ||
+    if (!g_offsets.expected_songlist_loader_call ||
+        !mem::ProcMaps::IsReadable(loader_call, sizeof(uint32_t)) ||
         !mem::ProcMaps::IsReadable(size_guard, sizeof(uint32_t)) ||
         !mem::ProcMaps::IsReadable(compare_guard, sizeof(uint32_t)) ||
-        mem::Read<uint32_t>(loader_call) != cfg::custom_charts::kExpectedSonglistLoaderCall ||
+        mem::Read<uint32_t>(loader_call) != g_offsets.expected_songlist_loader_call ||
         mem::Read<uint32_t>(size_guard) != cfg::custom_charts::kExpectedDigestSizeGuard ||
         mem::Read<uint32_t>(compare_guard) != cfg::custom_charts::kExpectedDigestCompareGuard) {
         ARC_LOGE("Install target signature mismatch");

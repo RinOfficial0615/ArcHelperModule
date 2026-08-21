@@ -131,13 +131,13 @@ inline constexpr std::array<uint8_t, 16> kSig_LogicColor_acceptsTouch = {
 };
 
 inline constexpr const std::array<uint8_t, 16> &ScoreStateApplyJudgementSignature(GameVersionId version) {
-    return version == GameVersionId::k6162c
+    return version == GameVersionId::k6162c || version == GameVersionId::k6168c
                ? kSig_6162c_ScoreState_applyJudgement
                : kSig_ScoreState_applyJudgement;
 }
 
 inline constexpr const std::array<uint8_t, 16> &ScoreStateApplyMissSignature(GameVersionId version) {
-    return version == GameVersionId::k6162c
+    return version == GameVersionId::k6162c || version == GameVersionId::k6168c
                ? kSig_6162c_ScoreState_applyMiss
                : kSig_ScoreState_applyMiss;
 }

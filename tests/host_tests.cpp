@@ -5,6 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "config/AutoplayConfig.h"
 #include "config/CustomChartConfig.h"
 #include "game/GameProfile.hpp"
 #include "manager/network/NetworkHandler.hpp"
@@ -47,6 +48,16 @@ int main(int argc, char **argv) {
         assert(profile_616 != nullptr);
         assert(std::string_view(profile_616->version_name) == "6.16.2c");
         assert(profile_616->capabilities.custom_charts);
+        const auto *profile_6168 = cfg::FindGameProfileByVersionString("6.16.8c");
+        assert(profile_6168 != nullptr);
+        assert(std::string_view(profile_6168->version_name) == "6.16.8c");
+        assert(profile_6168->capabilities.autoplay && profile_6168->capabilities.network &&
+               profile_6168->capabilities.custom_charts);
+        assert(profile_6168->custom_charts.expected_songlist_loader_call != 0);
+        assert(cfg::autoplay::ScoreStateApplyJudgementSignature(cfg::GameVersionId::k6168c)
+                   .data() == cfg::autoplay::kSig_6162c_ScoreState_applyJudgement.data());
+        assert(cfg::autoplay::ScoreStateApplyMissSignature(cfg::GameVersionId::k6168c).data() ==
+               cfg::autoplay::kSig_6162c_ScoreState_applyMiss.data());
         assert(cfg::FindGameProfileByVersionString("6.12.11c") != nullptr);
         assert(cfg::FindGameProfileByVersionString("6.13.2f") != nullptr);
         assert(cfg::FindGameProfileByVersionString("6.14.0c") != nullptr);

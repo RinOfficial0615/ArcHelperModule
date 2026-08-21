@@ -15,6 +15,7 @@ enum class GameVersionId : uint8_t {
     k6132f,
     k6140c,
     k6162c,
+    k6168c,
 };
 
 struct VersionProbeOffsets {
@@ -52,8 +53,9 @@ struct SslPinsOffsets {
 struct CustomChartsOffsets {
     uintptr_t songlist_parser = 0;
     // Return address immediately after the validated AAssetManager_open BL
-    // that reads songs/songlist (6.16.2c: 0x142CFB0).  This is deliberately
-    // an exact caller match; the nearby integrity/preload caller is official.
+    // that reads songs/songlist (6.16.2c: 0x142CFB0, 6.16.8c: 0x1709D98).
+    // This is deliberately an exact caller match; the nearby integrity/preload
+    // caller is official.
     uintptr_t songlist_asset_loader_caller = 0;
     uintptr_t asset_bundle_loader = 0;
     uintptr_t songlist_digest_size_guard = 0;
@@ -66,6 +68,9 @@ struct CustomChartsOffsets {
     uintptr_t chart_path = 0;
     uintptr_t song_registry_global = 0;
     uintptr_t find_song_by_id = 0;
+    // Encoded BL at songlist_asset_loader_caller - 4; the immediate differs
+    // per build because it targets the PLT stub of that binary.
+    uint32_t expected_songlist_loader_call = 0;
 };
 
 struct FeatureCapabilities {
@@ -85,7 +90,7 @@ struct GameProfile {
     FeatureCapabilities capabilities{};
 };
 
-inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
+inline constexpr std::array<GameProfile, 5> kSupportedGameProfiles = {{
     {
         .id = GameVersionId::k61211c,
         .version_name = "6.12.11c",
@@ -220,6 +225,51 @@ inline constexpr std::array<GameProfile, 4> kSupportedGameProfiles = {{
             .chart_path = 0xA74680,
             .song_registry_global = 0x1AAB6E0,
             .find_song_by_id = 0xCADFA4,
+            .expected_songlist_loader_call = 0x94140479,
+        },
+        .capabilities = {.autoplay = true, .network = true, .custom_charts = true},
+    },
+    {
+        .id = GameVersionId::k6168c,
+        .version_name = "6.16.8c",
+        .version_probe = {
+            .app_version_string = 0x1AA3250,
+        },
+        .autoplay = {
+            .gameplay_process_logic_notes = 0xD7A8D4,
+            .gameplay_try_tap_judgement_for_touch = 0xD4F330,
+            .score_state_apply_judgement = 0xDA6D04,
+            .score_state_apply_miss = 0x979CD0,
+            .show_judgement_effect_at_note = 0x1401F98,
+            .note_effect_on_miss = 0xB79F1C,
+            .note_effect_on_judgement = 0xB4D628,
+            .logic_color_accepts_touch = 0x11F1AC4,
+            .patch_process_logic_notes_add64_a = 0xD7ADBC,
+            .patch_process_logic_notes_add64_b = 0xD7AE74,
+            .patch_process_logic_notes_addc8 = 0xD7AEC4,
+            .typeinfo_logic_hold_note = 0x196A440,
+            .typeinfo_logic_arc_note = 0x19549E0,
+        },
+        .network = {
+            .httpclient_process_request = 0xFA5D40,
+            .curl_easy_setopt = 0x750734,
+        },
+        .ssl_pins = {},
+        .custom_charts = {
+            .songlist_parser = 0xDC9CBC,
+            .songlist_asset_loader_caller = 0x1709D98,
+            .asset_bundle_loader = 0x77AA00,
+            .songlist_digest_size_guard = 0x77AE2C,
+            .songlist_digest_compare_guard = 0x77AE48,
+            .songlist_difficulty_filter = 0xD3AF00,
+            .difficulty_availability = 0xE8792C,
+            .song_unlock_mask_check = 0x1068020,
+            .content_availability = 0xF64A90,
+            .play_launcher = 0xA1F1A0,
+            .chart_path = 0xDA71E8,
+            .song_registry_global = 0x1A9DA58,
+            .find_song_by_id = 0xC05E74,
+            .expected_songlist_loader_call = 0x94089DEB,
         },
         .capabilities = {.autoplay = true, .network = true, .custom_charts = true},
     },
