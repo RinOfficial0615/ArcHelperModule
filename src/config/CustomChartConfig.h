@@ -105,11 +105,6 @@ inline constexpr uint32_t kNopInstruction = 0xD503201F;
 inline constexpr uint32_t kExpectedDigestSizeGuard = 0x540013A1;
 inline constexpr uint32_t kExpectedDigestCompareGuard = 0x350012C0;
 
-inline constexpr std::array<uint8_t, 16> kSigCxaThrow = {
-    0x3F, 0x23, 0x03, 0xD5, 0xFD, 0x7B, 0xBC, 0xA9,
-    0xF7, 0x0B, 0x00, 0xF9, 0xF6, 0x57, 0x02, 0xA9,
-};
-
 inline constexpr std::array<uint8_t, 16> kSigSonglistDifficultyFilter = {
     0xFF, 0x83, 0x03, 0xD1, 0xFD, 0x7B, 0x08, 0xA9,
     0xFC, 0x6F, 0x09, 0xA9, 0xFA, 0x67, 0x0A, 0xA9,
@@ -157,7 +152,6 @@ inline constexpr std::array<uint8_t, 16> kSigFmodLoadBgm = {
     0xFC, 0x6F, 0x0B, 0xA9, 0xFA, 0x67, 0x0C, 0xA9,
 };
 
-inline constexpr const char *kCxaThrowSymbol = "__cxa_throw";
 inline constexpr const char *kFmodProviderLibrary = "libfmodProvider.so";
 inline constexpr const char *kFmodLoadBgmSymbol =
     "_ZN24AudioProviderFMODAndroid7loadBGMEPKci";

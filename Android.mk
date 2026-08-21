@@ -6,6 +6,7 @@ LOCAL_SRC_FILES := \
     src/wrapper/ZygiskEntryWrapper.cpp \
     src/wrapper/JniEntryWrapper.cpp \
     src/features/Autoplay.cpp \
+    src/features/CxaThrowTracer.cpp \
     src/features/Logging.cpp \
     src/features/NetworkLogger.cpp \
     src/features/NetworkBlock.cpp \

@@ -2,6 +2,7 @@
 
 #include "features/Autoplay.hpp"
 #include "features/CustomCharts.hpp"
+#include "features/CxaThrowTracer.hpp"
 #include "features/Logging.hpp"
 #include "features/NetworkBlock.hpp"
 #include "features/NetworkLogger.hpp"
@@ -25,6 +26,7 @@ void FeatureManager::CreateAllLocked() {
     if (created_) return;
     Logging::Instance();
     Autoplay::Instance();
+    CxaThrowTracer::Instance();
     NetworkLogger::Instance();
     NetworkBlock::Instance();
     CustomCharts::Instance();
@@ -36,6 +38,7 @@ void FeatureManager::InstallAll(const cfg::GameProfile &profile) {
     std::scoped_lock lock(mutex_);
     CreateAllLocked();
 
+    CxaThrowTracer::Instance().Install(profile);
     Autoplay::Instance().Install(profile);
     NetworkLogger::Instance().Install(profile);
     const bool custom_charts_active = CustomCharts::Instance().Enabled() &&

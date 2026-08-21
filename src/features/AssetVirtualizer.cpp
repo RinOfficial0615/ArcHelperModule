@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cinttypes>
 #include <cstring>
 #include <exception>
 #include <fstream>
@@ -14,8 +13,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-
-#include <unwind.h>
 
 #include <android/asset_manager.h>
 
@@ -574,64 +571,6 @@ void FmodLoadBgmHook(void *provider, const char *path, int channel) {
     CALL_ORIG(FmodLoadBgmHook, provider, path, channel);
 }
 
-struct CxaTypeInfoView {
-    const void *vtable;
-    const char *name;
-};
-
-struct ThrowTrace {
-    std::array<uintptr_t, 16> frames{};
-    size_t size = 0;
-};
-
-_Unwind_Reason_Code CollectThrowFrame(_Unwind_Context *context, void *argument) {
-    auto &trace = *static_cast<ThrowTrace *>(argument);
-    if (trace.size == trace.frames.size()) return _URC_END_OF_STACK;
-    const uintptr_t ip = static_cast<uintptr_t>(_Unwind_GetIP(context));
-    if (ip) trace.frames[trace.size++] = ip;
-    return _URC_NO_REASON;
-}
-
-[[noreturn]] void CxaThrowHook(void *exception, const void *type_info, void (*destructor)(void *)) {
-    static thread_local bool tracing = false;
-    if (!tracing) {
-        tracing = true;
-        std::array<char, 128> type_name{};
-        std::strcpy(type_name.data(), "<unknown>");
-        if (type_info && mem::ProcMaps::IsReadable(reinterpret_cast<uintptr_t>(type_info),
-                                                   sizeof(CxaTypeInfoView))) {
-            const auto *type = static_cast<const CxaTypeInfoView *>(type_info);
-            const char *name = nullptr;
-            std::memcpy(&name, &type->name, sizeof(name));
-            if (name) {
-                size_t length = 0;
-                while (length + 1 < type_name.size() &&
-                       mem::ProcMaps::IsReadable(reinterpret_cast<uintptr_t>(name + length), 1) &&
-                       name[length] != '\0') {
-                    type_name[length] = name[length];
-                    ++length;
-                }
-                if (length != 0) type_name[length] = '\0';
-            }
-        }
-        const uintptr_t caller = reinterpret_cast<uintptr_t>(__builtin_return_address(0));
-        const uintptr_t caller_offset = caller >= g_lib_base ? caller - g_lib_base : 0;
-        ThrowTrace trace;
-        _Unwind_Backtrace(CollectThrowFrame, &trace);
-        ARC_LOGE("throw type=%s exception=%p caller=%p rel=0x%" PRIxPTR,
-                 type_name.data(), exception, reinterpret_cast<void *>(caller), caller_offset);
-        for (size_t i = 0; i < trace.size; ++i) {
-            const uintptr_t frame = trace.frames[i];
-            const uintptr_t offset = frame >= g_lib_base ? frame - g_lib_base : 0;
-            ARC_LOGE("throw frame[%zu]=%p rel=0x%" PRIxPTR,
-                     i, reinterpret_cast<void *>(frame), offset);
-        }
-        tracing = false;
-    }
-    CALL_ORIG(CxaThrowHook, exception, type_info, destructor);
-    __builtin_unreachable();
-}
-
 AAsset *OpenHook(AAssetManager *manager, const char *filename, int mode) {
     if (!g_open_original) return nullptr;
     if (!filename) return g_open_original(manager, filename, mode);
@@ -878,7 +817,6 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         return false;
     }
 
-    uintptr_t cxa_throw = 0;
     uintptr_t songlist_difficulty_filter = 0;
     uintptr_t difficulty_availability = 0;
     uintptr_t song_unlock_mask_check = 0;
@@ -897,13 +835,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
         RestoreAssetHooks(dev, inode);
         return false;
     }
-    std::array<HookManager::InlineHookRegistration, 8> registrations = {
-        hook_manager.RegisterInlineHookSymbol(cxa_throw,
-                                              cfg::module::kLibName,
-                                              cfg::custom_charts::kCxaThrowSymbol,
-                                              cfg::custom_charts::kSigCxaThrow,
-                                              CxaThrowHook,
-                                              "__cxa_throw"),
+    std::array<HookManager::InlineHookRegistration, 7> registrations = {
         hook_manager.RegisterInlineHookSymbol(fmod_load_bgm,
                                               cfg::custom_charts::kFmodProviderLibrary,
                                               cfg::custom_charts::kFmodLoadBgmSymbol,
