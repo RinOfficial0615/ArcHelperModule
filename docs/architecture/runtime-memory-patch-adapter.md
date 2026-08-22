@@ -21,8 +21,9 @@ rollback operation:
 3. Save each touched page's original permissions and make only those pages
    writable.
 4. Apply replacements and flush the instruction cache.
-5. Restore page permissions. A failed restore is represented as `Degraded` and
-   can be retried with `Rollback()`.
+5. Restore page permissions. If any restore fails, the transaction immediately
+   rolls every applied patch back; if that recovery also fails it enters
+   `Degraded`, which callers can retry with `Rollback()`.
 
 The transaction owns the original bytes and automatically attempts rollback in
 its destructor while it is applied or degraded. Features also retry a degraded
@@ -64,8 +65,9 @@ state.
 
 `HookManager::RegisterInlineHookSymbol` resolves exported symbols with
 `dlopen`/`dlsym` and keeps the library handle alive for the hook lifetime.
-AssetVirtualizer uses this path for `__cxa_throw` and FMOD `loadBGM`; the
-remaining game-private methods continue to use profile signatures and offsets.
+AssetVirtualizer uses this path for FMOD `loadBGM`, and the always-on
+CxaThrowTracer resolves `__cxa_throw` the same way; the remaining game-private
+methods continue to use profile signatures and offsets.
 
 ## Verification
 

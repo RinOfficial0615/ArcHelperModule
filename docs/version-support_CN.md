@@ -8,6 +8,7 @@ Language: [English](version-support.md) | 简体中文
 - `6.13.2f`
 - `6.14.0c`
 - `6.16.2c`（完整 profile；自定义谱面）
+- `6.16.8c`（完整 profile；自定义谱面）
 
 ## 运行时识别
 
@@ -31,4 +32,4 @@ Language: [English](version-support.md) | 简体中文
 - **对象布局** — `src/game/GameStructs.hpp`（版本模板化，`offsetof` + `static_assert` 编译期校验）。
 - **共享常量和字节签名** — `src/config/AutoplayConfig.h`、`src/config/NetworkBlockConfig.h` 和 `src/config/CustomChartConfig.h`。
 - **函数 / RTTI / patch 偏移** — `src/game/GameProfile.hpp`（每个支持版本一条记录）。
-- **文档化位点** — `docs/offsets/6.12.11c-offsets.md`、`docs/offsets/6.16.2c-offsets.md`。
+- **文档化位点** — `docs/offsets/6.12.11c-offsets.md`、`docs/offsets/6.16.2c-offsets.md`、`docs/offsets/6.16.8c-offsets.md`。

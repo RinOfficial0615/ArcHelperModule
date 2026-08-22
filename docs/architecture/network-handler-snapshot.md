@@ -3,8 +3,11 @@
 `NetworkManager` remains the runtime facade. Handler registration is a
 clone-on-write operation: it copies the current `HandlerSnapshot`, inserts the
 new immutable entry, sorts by priority and registration order, then publishes
-the new `shared_ptr` through the standard atomic shared-pointer free functions
-with release semantics. Hook dispatch acquires one
+the new `shared_ptr` through the atomic shared-pointer free functions with
+release semantics. The deprecated free functions are used deliberately:
+libc++'s `std::atomic<std::shared_ptr>` specialization is not guaranteed in
+the pinned NDK toolchain, so the newest-features rule yields to this
+toolchain constraint. Hook dispatch acquires one
 snapshot and iterates that stable view, so a registration retry cannot resize
 or reorder a vector while a hook is using it.
 
@@ -34,6 +37,9 @@ flowchart LR
   still controls the final logcat/file sink limits.
 - Runtime object addresses and curl error buffers are private to the manager;
   handlers receive copied error text and borrowed bounded views instead.
+- In the AfterRequest phase a handler may adjust response metadata:
+  `NetworkManager` writes the handler-provided status code and OK flag back to
+  the game's `HttpResponse`. Response bodies remain read-only views.
 - NetworkBlock's count and first-activation flag are atomic across hook
   threads.
 - Curl state binds to the first handle observed inside one process-request

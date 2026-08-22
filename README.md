@@ -2,7 +2,7 @@
 
 Language: English | [简体中文](README_CN.md)
 
-Arcaea helper module with autoplay, network controls, and local custom charts for 6.12.11c / 6.13.2f / 6.14.0c / 6.16.2c (arm64). Custom charts start at 6.16.2c.
+Arcaea helper module with autoplay, network controls, and local custom charts for 6.12.11c / 6.13.2f / 6.14.0c / 6.16.2c / 6.16.8c (arm64). Custom charts start at 6.16.2c.
 
 Provides both Zygisk and JNI entry points. You can embed the built .so into an APK and load it after `libcocos2dcpp.so`, or install it as a Zygisk module directly.
 
@@ -10,7 +10,7 @@ Provides both Zygisk and JNI entry points. You can embed the built .so into an A
 
 - Android NDK r29+ (the build script picks the newest; fails if ≤ r28)
 - Device with Zygisk enabled
-- Arcaea 6.12.11c, 6.13.2f, 6.14.0c, or 6.16.2c
+- Arcaea 6.12.11c, 6.13.2f, 6.14.0c, 6.16.2c, or 6.16.8c
 
 ## Build
 
@@ -35,9 +35,11 @@ Artifact: `build/ArcHelperModule.zip`
 | Logging | `Logging.level` | Minimum level written to logcat and files (`Debug`, `Info`, `Warn`, `Error`); defaults to `Debug` in debug builds and `Info` in release builds |
 | Autoplay | `Autoplay` | Drive arcs & holds, force Pure, suppress effects |
 | Network logging | `NetworkLogger` | Audit HTTP request / response traffic (off by default) |
-| Ordinary network block | `NetworkBlock` | Apply score/world-mode URL rules; mandatory custom-chart isolation remains independent |
+| Ordinary network block | `NetworkBlock` | Apply score/world-mode URL rules; mandatory custom-chart isolation remains independent. `blocked_log_limit` caps logged blocked-request bodies; `0` means unlimited |
 | SSL pinning bypass | `SslPinningBypass` | Remove SSL pinning on profiles with complete patch offsets (off by default) |
 | Custom charts | `CustomCharts` | Load `.arcpkg` and raw ZIP at startup with fixed network-isolation rules |
+
+`CxaThrowTracer` is an always-on diagnostic with no configuration key: it logs every C++ exception thrown through the game library (type name, caller, short unwind) to help diagnose crashes.
 
 ## Runtime version detection
 
@@ -67,4 +69,4 @@ This project was developed with AI assistance.
 
 - Project structure: `docs/project-structure.md`
 - Version support: `docs/version-support.md`
-- Offsets reference: `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`
+- Offsets reference: `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`, `docs/offsets/6.16.8c-offsets.md`

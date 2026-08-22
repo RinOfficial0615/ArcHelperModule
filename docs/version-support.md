@@ -8,6 +8,7 @@ Language: English | [简体中文](version-support_CN.md)
 - `6.13.2f`
 - `6.14.0c`
 - `6.16.2c` (full profile; custom charts)
+- `6.16.8c` (full profile; custom charts)
 
 ## Runtime detection
 
@@ -31,4 +32,4 @@ Unknown builds stay in a "detected, not armed" state — the wrong offsets never
 - **Object layouts** — `src/game/GameStructs.hpp` (version-templated, compile-time verified via `offsetof` + `static_assert`).
 - **Shared constants & signatures** — `src/config/AutoplayConfig.h`, `src/config/NetworkBlockConfig.h`, and `src/config/CustomChartConfig.h`.
 - **Function / RTTI / patch-site offsets** — `src/game/GameProfile.hpp` (one entry per supported version).
-- **Documented sites** — `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`.
+- **Documented sites** — `docs/offsets/6.12.11c-offsets.md`, `docs/offsets/6.16.2c-offsets.md`, and `docs/offsets/6.16.8c-offsets.md`.
