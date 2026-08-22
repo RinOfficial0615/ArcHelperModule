@@ -4,19 +4,20 @@ Language: English | [简体中文](project-structure_CN.md)
 
 ## Source Tree
 
-- `src/wrapper/ZygiskEntryWrapper.cpp` — Zygisk entry, hooks `Runtime.nativeLoad`
+- `src/wrapper/ZygiskEntryWrapper.cpp` — Zygisk entry, hooks `Runtime.nativeLoad`; package-scope check via `src/config/ScopeConfig.hpp`
 - `src/wrapper/JniEntryWrapper.cpp` — JNI entry (`JNI_OnLoad`), for loading after `libcocos2dcpp.so`
-- `src/wrapper/WrapperCommon.hpp` — shared init logic, pkg check, feature bootstrap
+- `src/wrapper/WrapperCommon.hpp` — shared init bootstrap (root discovery, config load, feature creation)
 - `src/manager/GameManager.{hpp,cpp}` — caches `libcocos2dcpp.so` base
 - `src/manager/GameVersionManager.{hpp,cpp}` — detects game build, activates matching profile
 - `src/manager/HookManager.{hpp,cpp}` — transactional inline hook helper (`RegisterInlineHook`, `CommitInlineHook`, `CALL_ORIG`)
-- `src/manager/ConfigManager.{hpp,cpp}` — schema-free JSON loading, typed field registration, normalization, and atomic save
+- `src/manager/ConfigManager.{hpp,cpp}` — schema-free JSON loading, typed field access with validation, normalization, and atomic save
 - `src/manager/FeatureManager.{hpp,cpp}` — explicit Feature creation and installation order
 - `src/manager/NetworkManager.{hpp,cpp}` — network hooks, handler dispatch
 - `src/manager/network/NetworkHandler.hpp` plus `NetworkHandlerSnapshot.{hpp,cpp}` — handler phases, immutable order, and bounded views
-- `src/features/Feature.hpp` — feature name and typed configuration helpers (`AH_CFG`)
+- `src/features/Feature.hpp` — feature name and typed configuration helpers (`AH_CFG`, section-scoped `AH_CFG_SECTION`/`AH_CFG_SECTION_OPT`)
 - `src/features/Logging.{hpp,cpp}` — nested logcat/file sink configuration
 - `src/features/Autoplay.{hpp,cpp}` — autoplay hooks, synthetic touch, patch application
+- `src/features/CxaThrowTracer.{hpp,cpp}` — always-on `__cxa_throw` diagnostic (type name, caller, short unwind)
 - `src/features/NetworkLogger.{hpp,cpp}` — high-priority request/response audit
 - `src/features/NetworkBlock.{hpp,cpp}` — low-priority URL block policy
 - `src/features/SslPinningBypass.{hpp,cpp}` — SSL pin removal (two byte-patches)
@@ -24,6 +25,7 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/manager/custom_chart/CustomChartImporter.{hpp,cpp}` — `.arcpkg`/raw ZIP parsing and bounded cache extraction
 - `src/manager/custom_chart/AffNormalizer.{hpp,cpp}` — rewrite ArcCreate AFF into official 6.16.2c tokens
 - `src/manager/custom_chart/AffOfficialParser.{hpp,cpp}` — host-side official TokenLexer/parseNote check (not linked into the module)
+- `src/manager/custom_chart/ArcPackageFormat.{hpp,cpp}` — `.arcpkg` index.yml/songlist.yml bounded reader (rapidyaml)
 - `src/manager/custom_chart/CustomChartAssetIndex.{hpp,cpp}` — canonical logical asset paths and APK-era aliases
 - `src/manager/custom_chart/CustomChartSnapshot.{hpp,cpp}` — immutable songlist model and pure official-songlist merge
 - `src/manager/custom_chart/CustomChartReportWriter.{hpp,cpp}` — manifest/report writes and orphan-cache commit gate
@@ -32,8 +34,9 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/features/AssetVirtualizer.{hpp,cpp}` — virtual songlist/custom assets and official-default asset redirects
 - `src/game/GameTypes.hpp` — thin wrappers for `Gameplay`, `LogicArcNote`, `LogicHoldNote` etc
 - `src/utils/MemoryUtils.hpp` — umbrella include for memory tools
-- `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`, `AddressResolver`, `RuntimeMemory`, `PatchTransaction`, `InlineHook`, `ShadowHookAdapter`
+- `src/utils/memory/*.hpp|*.cpp` — `ProcMaps`, `AddressResolver`, `RuntimeMemory`, `PatchTransaction`, `InlineHook`, `ShadowHookAdapter`, `ExecUtils`
 - `src/utils/Log.{h,cpp}` — source-aware `ARC_LOGD/I/W/E`, logcat/file sinks, truncation and rotation
+- `src/utils/ImageRaster.{hpp,cpp}` — bounded background decode/crop/resize to official 1920x1440 JPEG (stb)
 - `third_party/json/` — nlohmann/json submodule used for parsing and serialization
 - `src/utils/Sha256.{hpp,cpp}` — content hashing and stable-ID support
 - `src/utils/ZipArchive.{hpp,cpp}` — ZIP reader with path, size, CRC, and ratio validation
@@ -43,6 +46,7 @@ Language: English | [简体中文](project-structure_CN.md)
 - `src/config/NetworkBlockConfig.h` — network policy, block rules, byte signatures
 - `src/config/CustomChartConfig.h` — asset aliases, parser bounds, layout guards, and hook signatures
 - `src/config/ModuleConfig.h` — module identity and target library names
+- `src/config/ScopeConfig.hpp` — default scoped-package list and package-scope matching
 - `module/` — Magisk/Zygisk packaging metadata, scope, and configuration example
 - `third_party/libcxx/` — Android libc++ submodule
 - `third_party/lsplt/` — LSPlt submodule

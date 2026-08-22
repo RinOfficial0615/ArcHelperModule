@@ -13,33 +13,7 @@ CustomCharts &CustomCharts::Instance() {
 }
 
 CustomCharts::CustomCharts() : Feature("CustomCharts") {
-    auto &config = ConfigManager::Instance();
-    config.EnsureObject(Name(), "defaults");
-    config.EnsureObject(Name(), "overrides");
-    default_artist_ = config.Read(Name(), "defaults", "artist", std::string("Unknown"),
-                                  [](const std::string &value) { return !value.empty(); });
-    default_designer_ = config.Read(Name(), "defaults", "designer", std::string("Unknown"),
-                                    [](const std::string &value) { return !value.empty(); });
-    default_bpm_ = config.Read(Name(), "defaults", "bpm", 120.0, 1.0, 10000.0);
-    default_side_ = config.Read(Name(), "defaults", "side", 1, 0, 2);
-    default_background_ =
-        config.Read(Name(), "defaults", "background", std::string("base_conflict"),
-                    [](const std::string &value) { return !value.empty(); });
-    default_preview_start_ms_ = config.Read(
-        Name(), "defaults", "preview_start_ms", int64_t{0}, int64_t{0},
-        cfg::custom_charts::kMaximumPreviewEndMs - cfg::custom_charts::kDefaultPreviewDurationMs);
-    default_preview_duration_ms_ = config.Read(
-        Name(), "defaults", "preview_duration_ms", cfg::custom_charts::kDefaultPreviewDurationMs,
-        [this](const int64_t &value) {
-            return value > 0 &&
-                   value <= cfg::custom_charts::kMaximumPreviewEndMs - default_preview_start_ms_;
-        });
-    default_chart_difficulty_ = config.Read(Name(), "defaults", "chart_difficulty", 2, 0, 4);
-    default_rating_ = config.Read(Name(), "defaults", "rating", 0, 0, 20);
-    override_side_ = config.TryRead<int>(Name(), "overrides", "side", 0, 2);
-    override_background_ = config.TryRead<std::string>(
-        Name(), "overrides", "background",
-        [](const std::string &value) { return !value.empty(); });
+    ConfigManager::Instance().EnsureObject(Name(), "overrides");
 }
 
 bool CustomCharts::Enabled() const {
@@ -54,11 +28,11 @@ void CustomCharts::Install(const cfg::GameProfile &profile) {
         return;
     }
 
-    int64_t preview_duration = default_preview_duration_ms_;
-    if (default_preview_start_ms_ >
+    int64_t preview_duration = defaults_preview_duration_ms_;
+    if (defaults_preview_start_ms_ >
         cfg::custom_charts::kMaximumPreviewEndMs - preview_duration) {
         preview_duration = cfg::custom_charts::kDefaultPreviewDurationMs;
-        if (default_preview_start_ms_ >
+        if (defaults_preview_start_ms_ >
             cfg::custom_charts::kMaximumPreviewEndMs - preview_duration) {
             ARC_LOGE("Preview range overflow; feature disabled");
             return;
@@ -70,20 +44,20 @@ void CustomCharts::Install(const cfg::GameProfile &profile) {
         .root_dir = config.RootDir(),
         .charts_dir = config.ChartsDir(),
         .cache_dir = config.CacheDir(),
-        .default_artist = default_artist_,
-        .default_designer = default_designer_,
-        .default_bpm = default_bpm_,
-        .default_side = default_side_,
-        .default_background = default_background_,
-        .default_preview_start_ms = default_preview_start_ms_,
+        .default_artist = defaults_artist_,
+        .default_designer = defaults_designer_,
+        .default_bpm = defaults_bpm_,
+        .default_side = defaults_side_,
+        .default_background = defaults_background_,
+        .default_preview_start_ms = defaults_preview_start_ms_,
         .default_preview_duration_ms = preview_duration,
-        .default_chart_difficulty = default_chart_difficulty_,
-        .default_rating = default_rating_,
+        .default_chart_difficulty = defaults_chart_difficulty_,
+        .default_rating = defaults_rating_,
         .fallback_song_id = fallback_song_id_,
         .rating_plus_minimum_rating = rating_plus_minimum_rating_,
         .rating_plus_threshold = rating_plus_threshold_,
-        .override_side = override_side_,
-        .override_background = override_background_,
+        .override_side = overrides_side_,
+        .override_background = overrides_background_,
     };
 
     auto &manager = CustomChartManager::Instance();
