@@ -54,6 +54,12 @@ void CxaThrowTracer::Install(const cfg::GameProfile &profile) {
     if (installed_) return;
 
     auto &hook_manager = HookManager::Instance();
+    if (!hook_manager.EnsureReady()) {
+        ARC_LOGE("__cxa_throw install skipped: %s base not ready", cfg::module::kLibName);
+        return;
+    }
+    g_lib_base = hook_manager.GetLibBase();
+
     uintptr_t cxa_throw = 0;
     auto registration = hook_manager.RegisterInlineHookSymbol(cxa_throw,
                                                               cfg::module::kLibName,
@@ -70,7 +76,6 @@ void CxaThrowTracer::Install(const cfg::GameProfile &profile) {
         return;
     }
 
-    g_lib_base = hook_manager.GetLibBase();
     installed_ = true;
     ARC_LOGI("__cxa_throw trace install OK");
 }

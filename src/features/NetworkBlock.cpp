@@ -31,7 +31,7 @@ void NetworkBlock::Install(const cfg::GameProfile &profile, bool isolation_armed
         return;
     }
     const bool ok = NetworkManager::Instance().RegisterHandler(
-        "NetworkBlock", cfg::network_block::kHandlerPriorityNetworkBlock, HandleNetworkRequest);
+        Name(), cfg::network_block::kHandlerPriorityNetworkBlock, HandleNetworkRequest);
 
     installed_ = ok;
     ARC_LOGI("Handler registration %s", ok ? "OK" : "FAILED");

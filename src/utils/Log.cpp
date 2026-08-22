@@ -36,6 +36,12 @@ constexpr auto kAndroidPriorities = [] {
 }();
 constexpr size_t kDefaultLevelIndex = magic_enum::enum_index<LogLevel::Info>();
 
+// File naming and rotation policy (README: logs/ keeps five files).
+constexpr const char *kLogFileBaseName = "ArcHelper-";
+constexpr const char *kLogDirName = "logs";
+constexpr const char *kLogFileExtension = ".log";
+constexpr size_t kMaxRetainedLogFiles = 5;
+
 size_t LevelIndex(LogLevel level) {
     return magic_enum::enum_index(level).value_or(kDefaultLevelIndex);
 }
@@ -180,16 +186,13 @@ void Logger::VLog(LogLevel level, const char *file, int line,
     if (LevelIndex(level) < LevelIndex(config_.minimum_level)) return;
     if (!config_.logcat.enabled && (!config_.file.enabled || !file_)) return;
 
-    size_t formatting_budget = 0;
-    if (config_.logcat.enabled) formatting_budget = config_.logcat.max_length;
+    // Format at the largest configured line budget. A zero file budget means
+    // unlimited, which forces a full-length format regardless of logcat.
+    size_t formatting_budget = config_.logcat.enabled ? config_.logcat.max_length : 0;
     if (config_.file.enabled && file_) {
-        if (config_.file.max_length == 0) {
-            formatting_budget = 0;
-        } else if (formatting_budget != 0) {
-            formatting_budget = std::max(formatting_budget, config_.file.max_length);
-        } else if (!config_.logcat.enabled) {
-            formatting_budget = config_.file.max_length;
-        }
+        formatting_budget = config_.file.max_length == 0
+                                ? 0
+                                : std::max(formatting_budget, config_.file.max_length);
     }
     const std::string message = FormatMessage(format, args, formatting_budget);
     if (config_.logcat.enabled) {
@@ -229,7 +232,7 @@ void Logger::CloseFileLocked() {
 
 bool Logger::OpenFileLocked(const std::string &root_dir) {
     if (root_dir.empty()) return false;
-    const std::filesystem::path logs_dir = std::filesystem::path(root_dir) / "logs";
+    const std::filesystem::path logs_dir = std::filesystem::path(root_dir) / kLogDirName;
     std::error_code ec;
     std::filesystem::create_directories(logs_dir, ec);
     if (ec) return false;
@@ -239,9 +242,11 @@ bool Logger::OpenFileLocked(const std::string &root_dir) {
     const std::tm local = LocalTime(time_value);
     char filename[96]{};
     std::snprintf(filename, sizeof(filename),
-                  "ArcHelper-%04d%02d%02d-%02d%02d%02d-%d.log",
+                  "%s%04d%02d%02d-%02d%02d%02d-%d%s",
+                  kLogFileBaseName,
                   local.tm_year + 1900, local.tm_mon + 1, local.tm_mday,
-                  local.tm_hour, local.tm_min, local.tm_sec, static_cast<int>(getpid()));
+                  local.tm_hour, local.tm_min, local.tm_sec, static_cast<int>(getpid()),
+                  kLogFileExtension);
     const std::filesystem::path path = logs_dir / filename;
     file_ = std::fopen(path.string().c_str(), "ab");
     if (!file_) return false;
@@ -257,14 +262,14 @@ void Logger::RotateFilesLocked(const std::string &logs_dir) {
          it.increment(ec)) {
         if (!it->is_regular_file(ec)) continue;
         const std::string name = it->path().filename().string();
-        if (name.starts_with("ArcHelper-") && it->path().extension() == ".log") {
+        if (name.starts_with(kLogFileBaseName) && it->path().extension() == kLogFileExtension) {
             files.push_back(it->path());
         }
     }
     std::sort(files.begin(), files.end(), [](const auto &left, const auto &right) {
         return left.filename().string() < right.filename().string();
     });
-    while (files.size() > 5) {
+    while (files.size() > kMaxRetainedLogFiles) {
         const auto oldest = std::find_if(files.begin(), files.end(), [this](const auto &path) {
             return path.string() != file_path_;
         });

@@ -158,7 +158,6 @@ private:
         void *hook_handler = nullptr;
         void *orig_handler = nullptr;
         void *stub = nullptr;
-        bool active = false;
         bool rollback_pending = false;
     };
 
@@ -185,7 +184,6 @@ private:
     bool RollbackRegistration(InlineHookRegistration &registration);
     bool RetryPendingRollbacks();
 
-    InlineHookRecord *FindHookRecordByHook(void *hook_handler);
     const InlineHookRecord *FindHookRecordByHook(void *hook_handler) const;
     const InlineHookRecord *FindHookRecordByTarget(uintptr_t target_addr) const;
 

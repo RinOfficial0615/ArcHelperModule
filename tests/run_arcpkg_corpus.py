@@ -137,6 +137,7 @@ def compile_exe(name: str, sources: list[str], extra: list[str] | None = None) -
         *HOST_LINK_ARGS,
         "-std=c++23",
         "-O2",
+        *(extra or []),
         "-Wall",
         "-Wextra",
         "-Werror",
@@ -151,8 +152,6 @@ def compile_exe(name: str, sources: list[str], extra: list[str] | None = None) -
         "-o",
         str(exe),
     ]
-    if extra:
-        cmd[5:5] = extra
     subprocess.run(cmd, check=True, cwd=ROOT)
     return exe
 

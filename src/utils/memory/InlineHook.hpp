@@ -10,7 +10,7 @@ public:
                            void *hook_fn,
                            void **orig_fn_out,
                            void **stub_out);
-    static bool RestoreA64(uintptr_t target, void *orig_fn, void *stub);
+    static bool RestoreA64(void *stub);
 };
 
 } // namespace arc_helper::mem

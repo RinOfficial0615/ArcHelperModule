@@ -13,11 +13,10 @@ bool InlineHook::InstallA64(uintptr_t target,
     return ShadowHookAdapter::Install(target, hook_fn, orig_fn_out, stub_out);
 }
 
-bool InlineHook::RestoreA64(uintptr_t, void *orig_fn, void *stub) {
+bool InlineHook::RestoreA64(void *stub) {
     // ShadowHook owns the trampoline lifetime; the opaque stub is the only
-    // valid handle for unhooking. The original pointer is retained by callers
-    // solely for invoking the trampoline.
-    (void)orig_fn;
+    // valid handle for unhooking. Callers keep the original pointer solely
+    // for invoking the trampoline.
     return ShadowHookAdapter::Uninstall(stub);
 }
 
@@ -35,7 +34,7 @@ bool InlineHook::InstallA64(uintptr_t, void *, void **orig_fn_out, void **stub_o
     return false;
 }
 
-bool InlineHook::RestoreA64(uintptr_t, void *, void *) {
+bool InlineHook::RestoreA64(void *) {
     return false;
 }
 

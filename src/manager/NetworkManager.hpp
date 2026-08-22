@@ -31,8 +31,9 @@ public:
 
     static NetworkManager &Instance();
 
-    // Register one handler. Higher priority runs earlier.
-    bool RegisterHandler(const char *name, int priority, HandlerFn fn);
+    // Register one handler. Higher priority runs earlier. The name is copied
+    // into the published snapshot; caller storage need not outlive the call.
+    bool RegisterHandler(std::string_view name, int priority, HandlerFn fn);
     bool HooksInstalled() const {
         return hooks_installed_.load(std::memory_order_acquire);
     }
@@ -67,7 +68,6 @@ private:
     static void PopulateBodyViews(HandlerArgs &args);
 
     HookManager &hook_manager_ = HookManager::Instance();
-    uintptr_t lib_base_ = 0;
 
     uintptr_t addr_curl_easy_setopt_ = 0;
 

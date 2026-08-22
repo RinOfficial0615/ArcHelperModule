@@ -20,7 +20,7 @@ void CaptureLogcat(int, const char *line) {
     g_logcat_lines.emplace_back(line ? line : "");
 }
 
-[[maybe_unused]] bool IsValidUtf8(const std::string &text) {
+bool IsValidUtf8(const std::string &text) {
     for (size_t i = 0; i < text.size();) {
         const unsigned char lead = static_cast<unsigned char>(text[i]);
         size_t length = 1;

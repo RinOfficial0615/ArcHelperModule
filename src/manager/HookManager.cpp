@@ -208,14 +208,14 @@ HookManager::InlineHookRegistration HookManager::RegisterInlineHookAbsoluteImpl(
 
     {
         std::shared_lock records_lock(records_mutex_);
-        if (const auto *existing = FindHookRecordByHook(hook_handler); existing && existing->active) {
+        if (const auto *existing = FindHookRecordByHook(hook_handler)) {
             if (existing->target_addr != addr) {
                 ARC_LOGE("Hook handler conflict for %s", name);
                 return {};
             }
             return {this, addr, hook_handler, name, InlineHookRegistration::State::Committed};
         }
-        if (const auto *existing = FindHookRecordByTarget(addr); existing && existing->active) {
+        if (FindHookRecordByTarget(addr)) {
             ARC_LOGE("Hook target conflict for %s @ %p", name, reinterpret_cast<void *>(addr));
             return {};
         }
@@ -282,7 +282,6 @@ bool HookManager::CommitInlineHook(std::span<InlineHookRegistration> registratio
                                          registration.hook_handler_,
                                          registration.orig_handler_,
                                          registration.stub_,
-                                         true,
                                          false});
             }
         }
@@ -341,9 +340,7 @@ bool HookManager::RollbackRegistration(InlineHookRegistration &registration) {
     std::scoped_lock mutation_lock(mutation_mutex_);
     std::unique_lock records_lock(records_mutex_);
     if (registration.state_ != InlineHookRegistration::State::Installed) return true;
-    if (!mem::InlineHook::RestoreA64(registration.target_addr_,
-                                     registration.orig_handler_,
-                                     registration.stub_)) {
+    if (!mem::InlineHook::RestoreA64(registration.stub_)) {
         const auto existing = std::ranges::find_if(inline_hooks_, [&](const auto &record) {
             return record.target_addr == registration.target_addr_ &&
                    record.hook_handler == registration.hook_handler_;
@@ -353,12 +350,10 @@ bool HookManager::RollbackRegistration(InlineHookRegistration &registration) {
                                      registration.hook_handler_,
                                      registration.orig_handler_,
                                      registration.stub_,
-                                     true,
                                      true});
         } else {
             existing->orig_handler = registration.orig_handler_;
             existing->stub = registration.stub_;
-            existing->active = true;
             existing->rollback_pending = true;
         }
         ARC_LOGE("Failed to rollback %s @ %p",
@@ -390,9 +385,7 @@ bool HookManager::RetryPendingRollbacks() {
             ++iter;
             continue;
         }
-        if (!mem::InlineHook::RestoreA64(iter->target_addr,
-                                         iter->orig_handler,
-                                         iter->stub)) {
+        if (!mem::InlineHook::RestoreA64(iter->stub)) {
             restored_all = false;
             ++iter;
             continue;
@@ -402,13 +395,6 @@ bool HookManager::RetryPendingRollbacks() {
         iter = inline_hooks_.erase(iter);
     }
     return restored_all;
-}
-
-HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) {
-    auto it = std::ranges::find_if(inline_hooks_, [hook_handler](const auto &rec) {
-        return rec.hook_handler == hook_handler;
-    });
-    return it != inline_hooks_.end() ? &(*it) : nullptr;
 }
 
 const HookManager::InlineHookRecord *HookManager::FindHookRecordByHook(void *hook_handler) const {
@@ -428,15 +414,14 @@ const HookManager::InlineHookRecord *HookManager::FindHookRecordByTarget(uintptr
 bool HookManager::HasOriginalForHook(void *hook_handler) const {
     std::shared_lock lock(records_mutex_);
     const auto *rec = FindHookRecordByHook(hook_handler);
-    return rec && rec->active && rec->orig_handler;
+    return rec && rec->orig_handler;
 }
 
 void *HookManager::GetOriginalForHook(void *hook_handler) {
     const auto &mgr = Instance();
     std::shared_lock lock(mgr.records_mutex_);
     const auto *rec = mgr.FindHookRecordByHook(hook_handler);
-    if (!rec || !rec->active) return nullptr;
-    return rec->orig_handler;
+    return rec ? rec->orig_handler : nullptr;
 }
 
 bool HookManager::IsAllZeros(const std::array<uint8_t, 16> &sig) {

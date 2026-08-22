@@ -9,6 +9,7 @@
 #include "wrapper/WrapperCommon.hpp"
 #include "manager/ConfigManager.hpp"
 #include "config/ScopeConfig.hpp"
+#include "utils/JniUtils.hpp"
 #include <zygisk.hpp>
 
 using zygisk::Api;
@@ -20,12 +21,6 @@ namespace arc_helper {
 namespace {
 
 JNINativeMethod g_jni_method_hooks[1];
-
-void ClearPendingJniException(JNIEnv *env, const char *where) {
-    if (!env || !env->ExceptionCheck()) return;
-    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
-    env->ExceptionClear();
-}
 
 using OrigNativeLoad = jstring (*)(JNIEnv *, jclass, jstring, jobject, jobject);
 
@@ -110,10 +105,8 @@ void InitJniHooks() {
     g_jni_method_hooks[0].fnPtr = reinterpret_cast<void *>(Runtime_nativeLoad_hook);
 }
 
-bool IsModuleDisabled(Api *api) {
-    if (!api) return false;
-    const int dirfd = api->getModuleDir();
-    if (dirfd < 0) return false;
+bool IsModuleDisabled(Api *api, int dirfd) {
+    if (!api || dirfd < 0) return false;
 
     auto exists = [&](const char *name) -> bool {
         const int fd = openat(dirfd, name, O_RDONLY | O_CLOEXEC);
@@ -122,9 +115,7 @@ bool IsModuleDisabled(Api *api) {
         return true;
     };
 
-    const bool disabled = exists("disable") || exists("remove");
-    close(dirfd);
-    return disabled;
+    return exists("disable") || exists("remove");
 }
 
 } // namespace
@@ -149,7 +140,10 @@ public:
             return;
         }
 
-        if (IsModuleDisabled(api_)) {
+        // One getModuleDir fd serves both the disable check and scope matching.
+        const int module_dirfd = api_->getModuleDir();
+        if (IsModuleDisabled(api_, module_dirfd)) {
+            if (module_dirfd >= 0) close(module_dirfd);
             api_->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
             return;
         }
@@ -157,13 +151,13 @@ public:
         const char *package_name = env_->GetStringUTFChars(args->nice_name, nullptr);
         if (!package_name) {
             ClearPendingJniException(env_, "GetStringUTFChars(nice_name)");
+            if (module_dirfd >= 0) close(module_dirfd);
             api_->setOption(zygisk::Option::DLCLOSE_MODULE_LIBRARY);
             return;
         }
 
-        const int scope_dirfd = api_->getModuleDir();
-        const bool enable_module = cfg::scope::IsTargetPackage(scope_dirfd, package_name);
-        if (scope_dirfd >= 0) close(scope_dirfd);
+        const bool enable_module = cfg::scope::IsTargetPackage(module_dirfd, package_name);
+        if (module_dirfd >= 0) close(module_dirfd);
         if (enable_module) ConfigManager::Instance().SetPackageName(package_name);
         env_->ReleaseStringUTFChars(args->nice_name, package_name);
 

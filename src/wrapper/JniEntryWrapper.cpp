@@ -8,18 +8,15 @@
 #include <unistd.h>
 
 #include "wrapper/WrapperCommon.hpp"
+#include "utils/JniUtils.hpp"
 
 namespace {
+
+using arc_helper::ClearPendingJniException;
 
 // One-time JNI-side init gate for this .so instance.
 std::atomic<bool> g_jni_wrapper_inited = false;
 std::atomic<bool> g_jni_retry_started = false;
-
-void ClearPendingJniException(JNIEnv *env, const char *where) {
-    if (!env || !env->ExceptionCheck()) return;
-    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
-    env->ExceptionClear();
-}
 
 std::string PrepareRuntimeRoot(JavaVM *vm) {
     if (!vm) return {};
@@ -115,10 +112,18 @@ std::string PrepareRuntimeRoot(JavaVM *vm) {
 void RetryInitAfterGameLibraryLoad() {
     if (g_jni_retry_started.exchange(true, std::memory_order_acq_rel)) return;
     std::thread([] {
+        // Config load/save and feature creation happen once; later attempts
+        // only re-arm version resolution instead of rewriting config.json.
+        bool features_initialized = false;
         for (int attempt = 0; attempt < 120; ++attempt) {
             const uintptr_t base = arc_helper::wrapper::FindGameLibraryBase();
             if (base) {
-                arc_helper::wrapper::InitFeatures();
+                if (!features_initialized) {
+                    arc_helper::wrapper::InitFeatures();
+                    features_initialized = true;
+                } else {
+                    arc_helper::GameVersionManager::Instance().EnsureInstalled();
+                }
                 if (arc_helper::GameVersionManager::Instance().IsResolved()) {
                     ARC_LOGI("Delayed init resolved %s @ %p",
                              arc_helper::cfg::module::kLibName, reinterpret_cast<void *>(base));

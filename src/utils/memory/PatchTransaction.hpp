@@ -39,14 +39,6 @@ struct PatchFailure {
 // and validated before the first page permission is changed.
 class PatchTransaction {
 public:
-    // Coarse compatibility state for callers that only need to distinguish an
-    // active transaction from an empty or unrecoverable one.
-    enum class State : uint8_t {
-        Empty,
-        Active,
-        Degraded,
-    };
-
     using Result = std::expected<void, PatchFailure>;
 
     explicit PatchTransaction(RuntimeMemory memory = RuntimeMemory::Process());
@@ -57,16 +49,9 @@ public:
 
     Result Apply(std::span<const PatchDescriptor> descriptors);
     Result Rollback();
-    Result Restore() { return Rollback(); }
 
     [[nodiscard]] PatchState State() const noexcept { return state_; }
-    [[nodiscard]] enum State GetState() const noexcept {
-        if (state_ == PatchState::Applied) return PatchTransaction::State::Active;
-        if (state_ == PatchState::Degraded) return PatchTransaction::State::Degraded;
-        return PatchTransaction::State::Empty;
-    }
     [[nodiscard]] bool IsApplied() const noexcept { return state_ == PatchState::Applied; }
-    [[nodiscard]] bool IsActive() const noexcept { return IsApplied(); }
     [[nodiscard]] bool IsDegraded() const noexcept { return state_ == PatchState::Degraded; }
 
 private:

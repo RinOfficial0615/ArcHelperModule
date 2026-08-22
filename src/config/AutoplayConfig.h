@@ -50,6 +50,18 @@ inline constexpr size_t kLogicNote_vcall_canApplyJudgement_off = 0x20;
 inline constexpr size_t kLogicNote_vcall_setBeingTouched_off   = 96;
 inline constexpr size_t kArc_playScene_vcall_off               = 0x530;
 
+// Miss-window patch words shared by every supported profile: the three
+// `add w8, w10, #imm` instructions zero their immediates, and the
+// LogicColor_acceptsTouch gate is replaced by `mov w0, #0; ret`.
+inline constexpr uint32_t kPatchExpectedAdd64A = 0x11019148u;
+inline constexpr uint32_t kPatchExpectedAdd64B = 0x11019148u;
+inline constexpr uint32_t kPatchExpectedAddC8  = 0x11032148u;
+inline constexpr uint32_t kPatchImmediateMask  = 0x003FFC00u;
+inline constexpr std::array<uint32_t, 2> kPatchColorGateReplacement = {
+    0x52800020u,  // mov w0, #0
+    0xD65F03C0u,  // ret
+};
+
 // Runtime behavior knobs.
 inline constexpr int kSynthTouchBaseId = 100;
 inline constexpr int kMaxSynthTouches = 16;

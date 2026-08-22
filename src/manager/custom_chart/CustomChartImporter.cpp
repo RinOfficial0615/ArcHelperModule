@@ -21,6 +21,7 @@
 #include "manager/custom_chart/AffNormalizer.hpp"
 #include "manager/custom_chart/ArcPackageFormat.hpp"
 #include "manager/custom_chart/CustomChartReportWriter.hpp"
+#include "utils/BoundedParse.hpp"
 #include "utils/ImageRaster.hpp"
 #include "utils/Log.h"
 #include "utils/Sha256.hpp"
@@ -96,34 +97,6 @@ std::string MakeSongId(std::string_view source, std::string_view hash,
     return std::string(cfg::custom_charts::kCustomSongIdPrefix) + source_id + suffix;
 }
 
-bool ParseBoundedDouble(std::string_view text, double minimum, double maximum, double &out) {
-    const std::string token = Trim(text);
-    if (token.empty()) return false;
-    char *end = nullptr;
-    errno = 0;
-    const double value = std::strtod(token.c_str(), &end);
-    if (errno == ERANGE || !end || end != token.c_str() + token.size() ||
-        !std::isfinite(value) || value < minimum || value > maximum) {
-        return false;
-    }
-    out = value;
-    return true;
-}
-
-bool ParseBoundedInt64(std::string_view text, int64_t minimum, int64_t maximum, int64_t &out) {
-    const std::string token = Trim(text);
-    if (token.empty()) return false;
-    char *end = nullptr;
-    errno = 0;
-    const long long value = std::strtoll(token.c_str(), &end, 10);
-    if (errno == ERANGE || !end || end != token.c_str() + token.size() ||
-        value < minimum || value > maximum) {
-        return false;
-    }
-    out = static_cast<int64_t>(value);
-    return true;
-}
-
 bool ReadEntryText(const Archive &archive, const Entry *entry, std::string &out, std::string &error) {
     if (!entry) { error = "entry missing"; return false; }
     if (entry->uncompressed_size > cfg::custom_charts::kMaxTextEntryBytes) {
@@ -148,12 +121,20 @@ const Entry *FindCaseInsensitive(const Archive &archive, std::string_view path) 
     return nullptr;
 }
 
+// A song may only use files inside its own directory prefix. An empty prefix
+// means the archive root, so only root-level entries qualify — never a
+// whole-archive scan that could borrow another song's assets.
+bool InPrefix(std::string_view name, std::string_view prefix) {
+    if (prefix.empty()) return name.find('/') == std::string_view::npos;
+    return name.starts_with(prefix);
+}
+
 const Entry *FindOneByExtension(const Archive &archive, const std::set<std::string> &extensions,
                                 std::string_view prefix = {}) {
     const Entry *found = nullptr;
     for (const auto &entry : archive.Entries()) {
         if (entry.directory || !extensions.contains(Extension(entry.name))) continue;
-        if (!prefix.empty() && !entry.name.starts_with(prefix)) continue;
+        if (!InPrefix(entry.name, prefix)) continue;
         if (found) return nullptr;
         found = &entry;
     }
@@ -356,7 +337,7 @@ const Entry *FindRawJacket(const Archive &archive, std::string_view prefix) {
     }
     const Entry *candidate = nullptr;
     for (const auto &entry : archive.Entries()) {
-        if (!prefix.empty() && !entry.name.starts_with(prefix)) continue;
+        if (!InPrefix(entry.name, prefix)) continue;
         const std::string ext = Extension(entry.name);
         const std::string base = Lower(BaseName(entry.name));
         if (entry.directory || (ext != ".jpg" && ext != ".jpeg" && ext != ".png")) continue;
@@ -925,7 +906,6 @@ bool CustomChartImporter::ImportRawZip(const std::string &path, const std::strin
         }
         if (charts.empty()) {
             const Entry *only = FindOneByExtension(archive, {".aff"}, prefix);
-            if (!only && prefix.empty()) only = FindOneByExtension(archive, {".aff"});
             if (only) {
                 charts.emplace_back(
                     settings_.default_chart_difficulty, only);

@@ -31,6 +31,9 @@ constexpr int kJpegQuality = 85;
 constexpr int kOfficialBackgroundWidth = 1920;
 constexpr int kOfficialBackgroundHeight = 1440;
 constexpr uint64_t kMaxBackgroundBytes = 128ull * 1024 * 1024;
+// Bounds the decoded pixel buffer, not just the compressed input: a crafted
+// PNG can expand far beyond its encoded size.
+constexpr uint64_t kMaxDecodedPixels = 16ull * 1024 * 1024;
 
 bool IsJpeg(std::span<const uint8_t> bytes) {
     return bytes.size() >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
@@ -54,6 +57,13 @@ std::optional<RasterImage> NormalizeBackgroundImage(std::span<const uint8_t> byt
     int width = 0;
     int height = 0;
     int channels = 0;
+    if (!stbi_info_from_memory(bytes.data(), static_cast<int>(bytes.size()),
+                               &width, &height, &channels) ||
+        width <= 0 || height <= 0 ||
+        static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > kMaxDecodedPixels) {
+        if (error) *error = "background image empty or dimensions too large";
+        return std::nullopt;
+    }
     stbi_uc *pixels = stbi_load_from_memory(bytes.data(), static_cast<int>(bytes.size()),
                                             &width, &height, &channels, 3);
     if (!pixels || width <= 0 || height <= 0) {

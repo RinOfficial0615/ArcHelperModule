@@ -16,7 +16,7 @@ namespace arc_helper::cfg::layouts {
 //
 //  Version handling:
 //    Every struct is templated on GameVersionId.  The fields used here are
-//    shared through 6.16.2c (verified by cross-version function/BL comparison).
+//    shared through 6.16.8c (verified by cross-version function/BL comparison).
 //    When a future
 //    version changes a layout, override only the affected specialization.
 // ============================================================================
@@ -94,7 +94,7 @@ template <GameVersionId Ver>
 struct NotePosition : impl::NotePositionBase {};
 
 // ---------------------------------------------------------------------------
-//  LogicArcNote (extends LogicNote)
+//  LogicArcNote (same note family as LogicNote; overlay over its tail)
 // ---------------------------------------------------------------------------
 namespace impl {
 struct ArcNoteBase {
@@ -260,19 +260,32 @@ static_assert(offsetof(HttpResponse<V::k61211c>, statusCode)   == 80);
 // 6.16.2c capability gate: every field consumed by autoplay/network must keep
 // the verified shared layout before that profile can be armed.
 static_assert(offsetof(Timer<V::k6162c>, msA) == 32);
+static_assert(offsetof(Timer<V::k6162c>, msB) == 40);
 static_assert(offsetof(Timer<V::k6162c>, flag) == 45);
+static_assert(offsetof(Timer<V::k6162c>, msC) == 52);
 static_assert(offsetof(Gameplay<V::k6162c>, timer) == 48);
 static_assert(offsetof(Gameplay<V::k6162c>, note_begin) == 160);
 static_assert(offsetof(Gameplay<V::k6162c>, note_end) == 168);
 static_assert(offsetof(Note<V::k6162c>, timeStart) == 24);
+static_assert(offsetof(Note<V::k6162c>, timeEnd) == 28);
+static_assert(offsetof(Note<V::k6162c>, pos_ptr) == 32);
 static_assert(offsetof(Note<V::k6162c>, playSceneCtx) == 64);
+static_assert(offsetof(Note<V::k6162c>, active) == 84);
+static_assert(offsetof(Note<V::k6162c>, longTouchState) == 92);
 static_assert(offsetof(Note<V::k6162c>, runtimeX) == 204);
 static_assert(offsetof(Note<V::k6162c>, runtimeY) == 208);
+static_assert(offsetof(NotePosition<V::k6162c>, xNorm) == 20);
 static_assert(offsetof(ArcNote<V::k6162c>, isVoid) == 156);
+static_assert(offsetof(ArcNote<V::k6162c>, activeNow) == 200);
 static_assert(offsetof(HoldNote<V::k6162c>, headActivated) == 160);
+static_assert(offsetof(TouchLike<V::k6162c>, sysId) == 12);
 static_assert(offsetof(TouchLike<V::k6162c>, ndcX) == 28);
 static_assert(offsetof(HttpRequest<V::k6162c>, type) == 12);
+static_assert(offsetof(HttpRequest<V::k6162c>, bodyBegin) == 40);
+static_assert(offsetof(HttpRequest<V::k6162c>, bodyEnd) == 48);
 static_assert(offsetof(HttpResponse<V::k6162c>, request) == 16);
+static_assert(offsetof(HttpResponse<V::k6162c>, succeed) == 24);
+static_assert(offsetof(HttpResponse<V::k6162c>, bodyVec) == 32);
 static_assert(offsetof(HttpResponse<V::k6162c>, statusCode) == 80);
 
 static_assert(offsetof(Song<V::k6162c>, remote_pack) == 0x1C0);
@@ -289,19 +302,32 @@ static_assert(offsetof(SongRegistryOwner<V::k6162c>, registry) == 32);
 // 6.16.8c: game logic is byte-identical to 6.16.2c (verified by cross-version
 // function comparison), so every consumed layout offset must carry over.
 static_assert(offsetof(Timer<V::k6168c>, msA) == 32);
+static_assert(offsetof(Timer<V::k6168c>, msB) == 40);
 static_assert(offsetof(Timer<V::k6168c>, flag) == 45);
+static_assert(offsetof(Timer<V::k6168c>, msC) == 52);
 static_assert(offsetof(Gameplay<V::k6168c>, timer) == 48);
 static_assert(offsetof(Gameplay<V::k6168c>, note_begin) == 160);
 static_assert(offsetof(Gameplay<V::k6168c>, note_end) == 168);
 static_assert(offsetof(Note<V::k6168c>, timeStart) == 24);
+static_assert(offsetof(Note<V::k6168c>, timeEnd) == 28);
+static_assert(offsetof(Note<V::k6168c>, pos_ptr) == 32);
 static_assert(offsetof(Note<V::k6168c>, playSceneCtx) == 64);
+static_assert(offsetof(Note<V::k6168c>, active) == 84);
+static_assert(offsetof(Note<V::k6168c>, longTouchState) == 92);
 static_assert(offsetof(Note<V::k6168c>, runtimeX) == 204);
 static_assert(offsetof(Note<V::k6168c>, runtimeY) == 208);
+static_assert(offsetof(NotePosition<V::k6168c>, xNorm) == 20);
 static_assert(offsetof(ArcNote<V::k6168c>, isVoid) == 156);
+static_assert(offsetof(ArcNote<V::k6168c>, activeNow) == 200);
 static_assert(offsetof(HoldNote<V::k6168c>, headActivated) == 160);
+static_assert(offsetof(TouchLike<V::k6168c>, sysId) == 12);
 static_assert(offsetof(TouchLike<V::k6168c>, ndcX) == 28);
 static_assert(offsetof(HttpRequest<V::k6168c>, type) == 12);
+static_assert(offsetof(HttpRequest<V::k6168c>, bodyBegin) == 40);
+static_assert(offsetof(HttpRequest<V::k6168c>, bodyEnd) == 48);
 static_assert(offsetof(HttpResponse<V::k6168c>, request) == 16);
+static_assert(offsetof(HttpResponse<V::k6168c>, succeed) == 24);
+static_assert(offsetof(HttpResponse<V::k6168c>, bodyVec) == 32);
 static_assert(offsetof(HttpResponse<V::k6168c>, statusCode) == 80);
 
 static_assert(offsetof(Song<V::k6168c>, remote_pack) == 0x1C0);

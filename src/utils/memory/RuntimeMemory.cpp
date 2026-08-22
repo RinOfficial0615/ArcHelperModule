@@ -9,9 +9,12 @@
 #endif
 
 #include "utils/memory/ProcMaps.hpp"
+#include "utils/memory/CheckedRange.hpp"
 
 namespace arc_helper::mem {
 namespace {
+
+using detail::CheckedEnd;
 
 bool ProcessReadable(uintptr_t address, size_t size) {
 #if defined(__ANDROID__) || defined(__linux__)
@@ -66,22 +69,17 @@ const MemoryBackend &ProcessBackend() {
     return backend;
 }
 
-std::expected<uintptr_t, MemoryError> CheckedEnd(uintptr_t address, size_t size) {
-    if (address == 0 || size == 0) return std::unexpected(MemoryError::InvalidRange);
-    if (size > std::numeric_limits<uintptr_t>::max() - address) {
-        return std::unexpected(MemoryError::Overflow);
-    }
-    return address + size;
-}
-
 } // namespace
 
 RuntimeMemory::RuntimeMemory() : backend_(ProcessBackend()) {}
 
+// An incomplete injected backend is rejected outright instead of silently
+// falling back to live process access: a host test that forgets one hook must
+// observe failures, never real memory writes.
 RuntimeMemory::RuntimeMemory(MemoryBackend backend)
     : backend_(backend.readable && backend.writable && backend.permissions && backend.protect
                    ? backend
-                   : ProcessBackend()) {}
+                   : MemoryBackend{}) {}
 
 RuntimeMemory RuntimeMemory::Process() {
     return RuntimeMemory(ProcessBackend());
@@ -99,6 +97,7 @@ size_t RuntimeMemory::PageSize() {
 std::expected<void, MemoryError> RuntimeMemory::ReadBytes(
     uintptr_t address, std::span<std::byte> output) const {
     if (output.data() == nullptr) return std::unexpected(MemoryError::InvalidRange);
+    if (!backend_.readable) return std::unexpected(MemoryError::BackendInvalid);
     const auto end = CheckedEnd(address, output.size());
     if (!end) return std::unexpected(end.error());
     if (!backend_.readable(address, output.size())) {
@@ -111,6 +110,7 @@ std::expected<void, MemoryError> RuntimeMemory::ReadBytes(
 std::expected<void, MemoryError> RuntimeMemory::WriteBytes(
     uintptr_t address, std::span<const std::byte> input) const {
     if (input.data() == nullptr) return std::unexpected(MemoryError::InvalidRange);
+    if (!backend_.writable) return std::unexpected(MemoryError::BackendInvalid);
     const auto end = CheckedEnd(address, input.size());
     if (!end) return std::unexpected(end.error());
     if (!backend_.writable(address, input.size())) {
@@ -122,6 +122,7 @@ std::expected<void, MemoryError> RuntimeMemory::WriteBytes(
 
 std::expected<int, MemoryError> RuntimeMemory::GetPermissions(uintptr_t address) const {
     if (address == 0) return std::unexpected(MemoryError::InvalidRange);
+    if (!backend_.permissions) return std::unexpected(MemoryError::BackendInvalid);
     int permissions = 0;
     if (!backend_.permissions(address, permissions)) {
         return std::unexpected(MemoryError::Unmapped);
@@ -131,6 +132,7 @@ std::expected<int, MemoryError> RuntimeMemory::GetPermissions(uintptr_t address)
 
 std::expected<void, MemoryError> RuntimeMemory::Protect(
     uintptr_t address, size_t size, int permissions) const {
+    if (!backend_.protect) return std::unexpected(MemoryError::BackendInvalid);
     const auto end = CheckedEnd(address, size);
     if (!end) return std::unexpected(end.error());
     if (!backend_.protect(address, size, permissions)) {

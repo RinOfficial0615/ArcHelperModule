@@ -16,6 +16,7 @@
 #include <c4/yml/tree.hpp>
 
 #include "config/CustomChartConfig.h"
+#include "utils/BoundedParse.hpp"
 
 namespace arc_helper {
 namespace {
@@ -32,6 +33,11 @@ struct YamlSession {
     std::string error;
 };
 
+// The build disables exceptions, so rapidyaml's error callbacks cannot throw.
+// longjmp out of the parse instead. This deliberately skips non-trivial
+// destructors of frames between setjmp and the callback; only rapidyaml's own
+// stack frames live there (no owning RAII objects), and the session tree is
+// released by the caller after the jump lands.
 [[noreturn]] void YamlFail(YamlSession *session, c4::csubstr msg) {
     if (session) {
         if (msg.str && msg.len) session->error.assign(msg.str, msg.len);
@@ -75,43 +81,7 @@ ConstNodeRef ChildNode(ConstNodeRef node, std::string_view key) {
 }
 
 std::string TrimCopy(std::string_view value) {
-    size_t b = 0, e = value.size();
-    while (b < e && (value[b] == ' ' || value[b] == '\t' || value[b] == '\r' || value[b] == '\n')) {
-        ++b;
-    }
-    while (e > b && (value[e - 1] == ' ' || value[e - 1] == '\t' || value[e - 1] == '\r' ||
-                     value[e - 1] == '\n')) {
-        --e;
-    }
-    return std::string(value.substr(b, e - b));
-}
-
-bool ParseBoundedDouble(std::string_view text, double minimum, double maximum, double &out) {
-    const std::string token = TrimCopy(text);
-    if (token.empty()) return false;
-    char *end = nullptr;
-    errno = 0;
-    const double value = std::strtod(token.c_str(), &end);
-    if (errno == ERANGE || !end || end != token.c_str() + token.size() ||
-        !std::isfinite(value) || value < minimum || value > maximum) {
-        return false;
-    }
-    out = value;
-    return true;
-}
-
-bool ParseBoundedInt64(std::string_view text, int64_t minimum, int64_t maximum, int64_t &out) {
-    const std::string token = TrimCopy(text);
-    if (token.empty()) return false;
-    char *end = nullptr;
-    errno = 0;
-    const long long value = std::strtoll(token.c_str(), &end, 10);
-    if (errno == ERANGE || !end || end != token.c_str() + token.size() ||
-        value < minimum || value > maximum) {
-        return false;
-    }
-    out = static_cast<int64_t>(value);
-    return true;
+    return TrimWhitespace(value);
 }
 
 int ArcSide(std::string_view value) {

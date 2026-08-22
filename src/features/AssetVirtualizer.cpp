@@ -225,10 +225,6 @@ bool IsValidRuntimeList(const RuntimeSongDifficultyList &list) {
     const uintptr_t capacity = reinterpret_cast<uintptr_t>(list.capacity);
     if (!begin) return !end && !capacity;
     if (end < begin || capacity < end) return false;
-    if (end - begin > std::numeric_limits<size_t>::max() ||
-        capacity - begin > std::numeric_limits<size_t>::max()) {
-        return false;
-    }
     if ((end - begin) % sizeof(RuntimeSongDifficultyPair) != 0 ||
         (capacity - begin) % sizeof(RuntimeSongDifficultyPair) != 0) {
         return false;
@@ -892,7 +888,7 @@ bool AssetVirtualizer::Install(const cfg::GameProfile &profile) {
     }
 
     installed_ = true;
-    ARC_LOGI("Hook install %s", installed_ ? "OK" : "FAILED");
+    ARC_LOGI("Hook install OK");
     return installed_;
 }
 

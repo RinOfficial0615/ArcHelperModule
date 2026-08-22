@@ -14,6 +14,8 @@ struct MemRange {
 
 class ProcMaps {
 public:
+    // Live /proc/self/maps variant. Like FindLibraryBaseFromMaps, this returns
+    // the ELF load bias of the library's executable mapping, not a raw base.
     static uintptr_t FindLibraryBase(std::string_view soname);
     // ELF load bias from a /proc/<pid>/maps dump. Uses the executable PT_LOAD
     // (smallest file offset with PROT_EXEC); remapped GNU_RELRO is ignored.

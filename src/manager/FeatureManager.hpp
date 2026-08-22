@@ -19,7 +19,7 @@ private:
     void CreateAllLocked();
 
     bool created_ = false;
-    std::recursive_mutex mutex_{};
+    std::mutex mutex_{};
 };
 
 } // namespace arc_helper

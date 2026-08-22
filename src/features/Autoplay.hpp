@@ -42,7 +42,7 @@ private:
     struct TouchLikeStub {
         alignas(8) uint8_t bytes[0x40];
 
-        uintptr_t addr() const { return reinterpret_cast<uintptr_t>(bytes); }
+        uintptr_t Addr() const { return reinterpret_cast<uintptr_t>(bytes); }
 
         void Clear() { std::memset(bytes, 0, sizeof(bytes)); }
 
@@ -74,7 +74,6 @@ private:
         game::LogicArcNote note{};
         float x = 0.0f;
         float y = 0.0f;
-        float z = 0.0f;
     };
 
     using GameplayProcessLogicNotesFn = void (*)(uintptr_t gameplay, uintptr_t play_scene_or_ctx);
@@ -144,8 +143,6 @@ private:
     // Call note virtual `setBeingTouched(touch_like, now_ms)`.
     // We guard the target vcall to avoid crashing on stale pointers.
     void CallNoteSetBeingTouched(game::LogicNote note, uintptr_t touch_like, int now_ms);
-
-    bool IsSyntheticTouch(game::TouchLike touch) const;
 
     // Calls LogicNote::canApplyJudgement(judge_time, input_time) via vcall.
     // This is used as a safety gate before converting a miss into a judgement.

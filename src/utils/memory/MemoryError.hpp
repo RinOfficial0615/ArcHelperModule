@@ -16,6 +16,7 @@ enum class MemoryError : uint8_t {
     WriteFailed,
     RestoreFailed,
     UnsupportedInstruction,
+    BackendInvalid,
 };
 
 } // namespace arc_helper::mem

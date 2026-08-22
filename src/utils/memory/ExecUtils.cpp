@@ -12,7 +12,9 @@ namespace arc_helper::mem {
 bool IsAddrInLibraryExec(uintptr_t addr, std::string_view soname) {
     if (!addr || soname.empty()) return false;
 
-    // Hot path: this helper is called frequently for vcall guards.
+    // Per-vcall guard. The exec-range cache avoids one /proc/self/maps scan
+    // per call; the mutex only serializes cache refreshes. A soname change
+    // invalidates the cache and forces exactly one rescan per alternation.
     static std::array<MemRange, 64> s_exec_ranges{};
     static size_t s_exec_count = 0;
     static bool s_cached = false;

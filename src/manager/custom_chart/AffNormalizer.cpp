@@ -219,10 +219,13 @@ std::string JoinRelative(std::string_view from_file, std::string_view relative) 
     return normalized;
 }
 
+// AFF timings are non-negative and must stay within the official int32
+// domain: nested fragment shifts may not re-emit negative or oversized times.
 int64_t AddTiming(int64_t value, int64_t offset) {
-    if (offset >= 0 && value > INT32_MAX - offset) return INT32_MAX;
-    if (offset < 0 && value < INT32_MIN - offset) return INT32_MIN;
-    return value + offset;
+    value = std::clamp(value, static_cast<int64_t>(0), static_cast<int64_t>(INT32_MAX));
+    offset = std::clamp(offset, static_cast<int64_t>(INT32_MIN), static_cast<int64_t>(INT32_MAX));
+    const int64_t shifted = value + offset;
+    return shifted < 0 ? 0 : std::min(shifted, static_cast<int64_t>(INT32_MAX));
 }
 
 std::string ShiftNumber(const std::string &token, int64_t offset) {
@@ -741,9 +744,20 @@ std::string NormalizeDocument(std::string_view text, std::string_view source_nam
                 }
                 const std::string key = Trim(trimmed.substr(0, colon));
                 const std::string value = Trim(trimmed.substr(colon + 1));
+                double header_number = 0;
                 if (key == "AudioOffset") {
+                    if (!ParseDouble(value, header_number)) {
+                        AddDiag(*state.diagnostics, line_number, key, "DROPPED_HEADER",
+                                "invalid AudioOffset value");
+                        continue;
+                    }
                     append("AudioOffset:" + value);
                 } else if (key == "TimingPointDensityFactor" || key == "TimingPointsDensityFactor") {
+                    if (!ParseDouble(value, header_number)) {
+                        AddDiag(*state.diagnostics, line_number, key, "DROPPED_HEADER",
+                                "invalid density factor value");
+                        continue;
+                    }
                     if (key == "TimingPointsDensityFactor") {
                         AddDiag(*state.diagnostics, line_number, key, "REWRITTEN",
                                 "TimingPointDensityFactor");

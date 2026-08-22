@@ -46,7 +46,6 @@ void Autoplay::InitTouchesIfNeeded() {
         touches_[i].note = {};
         touches_[i].x = 0.0f;
         touches_[i].y = 0.0f;
-        touches_[i].z = 0.0f;
     }
 
     touches_inited_ = true;
@@ -64,11 +63,11 @@ float Autoplay::WorldYToNdc(float y_world) const {
 }
 
 int Autoplay::FindTouchByNote(game::LogicArcNote note) const {
-    const uintptr_t want = note.addr();
+    const uintptr_t want = note.Addr();
     if (!want) return -1;
     for (int i = 0; i < cfg::autoplay::kMaxSynthTouches; ++i) {
         if (touches_[i].role == TouchRole::None) continue;
-        if (touches_[i].note.addr() == want) return i;
+        if (touches_[i].note.Addr() == want) return i;
     }
     return -1;
 }
@@ -102,17 +101,17 @@ void Autoplay::CallNoteSetBeingTouched(game::LogicNote note, uintptr_t touch_lik
 
     // Call a virtual method from an object potentially managed by the game.
     // This guard is critical for stability when switching charts/replays.
-    const uintptr_t fn = note.vcall(cfg::autoplay::kLogicNote_vcall_setBeingTouched_off);
+    const uintptr_t fn = note.Vcall(cfg::autoplay::kLogicNote_vcall_setBeingTouched_off);
     if (!fn || !mem::IsAddrInLibraryExec(fn, cfg::module::kLibName)) return;
 
     using Fn = void (*)(uintptr_t, uintptr_t, int);
-    reinterpret_cast<Fn>(fn)(note.addr(), touch_like, now_ms);
+    reinterpret_cast<Fn>(fn)(note.Addr(), touch_like, now_ms);
 }
 
 bool Autoplay::ArcHasValidPlaySceneVcall(game::LogicArcNote arc_note) const {
     if (!arc_note) return false;
 
-    const uintptr_t ctx = arc_note.playSceneOrCtx();
+    const uintptr_t ctx = arc_note.PlaySceneOrCtx();
     if (!ctx || (ctx & 7) != 0 || !mem::ProcMaps::IsReadable(ctx, sizeof(uintptr_t))) return false;
 
     const uintptr_t vtbl = mem::Read<uintptr_t>(ctx);
@@ -141,8 +140,8 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
         }
     }
 
-    auto *note_begin = gameplay.pendingNoteBegin();
-    auto *note_end = gameplay.pendingNoteEnd();
+    auto *note_begin = gameplay.PendingNoteBegin();
+    auto *note_end = gameplay.PendingNoteEnd();
     const uintptr_t note_begin_addr = reinterpret_cast<uintptr_t>(note_begin);
     const uintptr_t note_end_addr = reinterpret_cast<uintptr_t>(note_end);
     if (!note_begin || !note_end || note_end_addr < note_begin_addr ||
@@ -169,9 +168,9 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
 
     for (auto p = note_begin; p != note_end; ++p) {
         game::LogicNote note(*p);
-        if (!note.active()) continue;
+        if (!note.Active()) continue;
 
-        const uintptr_t typeinfo = note.typeinfo();
+        const uintptr_t typeinfo = note.Typeinfo();
 
         // Per-frame long-note touch flag reset.
         // The game uses this state to decide whether a long note is currently held.
@@ -181,25 +180,25 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
 
         if (typeinfo == ti_hold) {
             // Holds: mark head activated while within (t0, t1) and keep it touched.
-            game::LogicHoldNote hold(note.addr());
-            const int t0 = hold.timeStart();
-            const int t1 = hold.timeEnd();
+            game::LogicHoldNote hold(note.Addr());
+            const int t0 = hold.TimeStart();
+            const int t1 = hold.TimeEnd();
             if (now_ms > t0 && now_ms < t1) {
-                hold.setHeadActivated(1);
-                CallNoteSetBeingTouched(hold, hold_touch_stub_.addr(), now_ms);
+                hold.SetHeadActivated(1);
+                CallNoteSetBeingTouched(hold, hold_touch_stub_.Addr(), now_ms);
             }
             continue;
         }
 
         if (typeinfo != ti_arc) continue;
 
-        game::LogicArcNote arc(note.addr());
-        const int t0 = arc.timeStart();
-        const int t1 = arc.timeEnd();
+        game::LogicArcNote arc(note.Addr());
+        const int t0 = arc.TimeStart();
+        const int t1 = arc.TimeEnd();
 
         // Arcs: ignore void arcs and arcs that are inactive.
-        if (arc.isVoid()) continue;
-        if (!arc.activeNow()) continue;
+        if (arc.IsVoid()) continue;
+        if (!arc.ActiveNow()) continue;
         const int64_t now = now_ms;
         if (now < static_cast<int64_t>(t0) - long_start_lead_ms_) continue;
         if (now > static_cast<int64_t>(t1) + long_end_lag_ms_) continue;
@@ -213,19 +212,18 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
             touches_[idx].role = TouchRole::Arc;
         }
 
-        const auto pos = arc.pos();
+        const auto pos = arc.Pos();
         if (!pos) continue;
-        const float x_norm = pos.x_norm();
+        const float x_norm = pos.XNorm();
 
         // Arcaea stores x as a normalized [0..1] value over the track width.
         // Convert that to world-space, then to NDC.
         const float x_base_world = x_norm * (2.0f * cfg::autoplay::kTrackHalfWidth) - cfg::autoplay::kTrackHalfWidth;
-        const float x_world = x_base_world + arc.runtimeX();
-        const float y_world = arc.runtimeY();
+        const float x_world = x_base_world + arc.RuntimeX();
+        const float y_world = arc.RuntimeY();
 
         touches_[idx].x = WorldXToNdc(x_world);
         touches_[idx].y = WorldYToNdc(y_world);
-        touches_[idx].z = 0.0f;
         arc_seen[idx] = 1;
     }
 
@@ -242,7 +240,7 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
         if (!arc_seen[i]) continue;
         if (!touch.note) continue;
 
-        if (touch.note.isVoid() || !touch.note.activeNow()) {
+        if (touch.note.IsVoid() || !touch.note.ActiveNow()) {
             ReleaseTouch(touch);
             continue;
         }
@@ -253,42 +251,36 @@ void Autoplay::AutoplayLongNotesTick(game::Gameplay gameplay, int now_ms) {
         }
 
         WriteTouchStub(i, now_ms);
-        CallNoteSetBeingTouched(touch.note, touch_stubs_[i].addr(), now_ms);
+        CallNoteSetBeingTouched(touch.note, touch_stubs_[i].Addr(), now_ms);
     }
-}
-
-bool Autoplay::IsSyntheticTouch(game::TouchLike touch) const {
-    if (!touch) return false;
-    const int sys_id = touch.sys_id();
-    return sys_id >= cfg::autoplay::kSynthTouchBaseId && sys_id <= cfg::autoplay::kSynthTouchHoldId;
 }
 
 bool Autoplay::NoteCanApplyJudgement(game::LogicNote note, int judge_time, int input_time) const {
     if (!note) return false;
 
-    const uintptr_t gate_fn = note.vcall(cfg::autoplay::kLogicNote_vcall_canApplyJudgement_off);
+    const uintptr_t gate_fn = note.Vcall(cfg::autoplay::kLogicNote_vcall_canApplyJudgement_off);
     if (!gate_fn || !mem::IsAddrInLibraryExec(gate_fn, cfg::module::kLibName)) return false;
 
     using GateFn = bool (*)(uintptr_t, int, int);
-    return reinterpret_cast<GateFn>(gate_fn)(note.addr(), judge_time, input_time);
+    return reinterpret_cast<GateFn>(gate_fn)(note.Addr(), judge_time, input_time);
 }
 
 void Autoplay::OnGameplayProcessLogicNotes(game::Gameplay gameplay, uintptr_t play_scene_or_ctx) {
     // This hook runs every logic tick and is our main timebase.
     if (!gameplay) return;
-    const int now_ms = gameplay.timer().NowMs();
+    const int now_ms = gameplay.GetTimer().NowMs();
     last_now_ms_ = now_ms;
 
     if (enabled_) AutoplayLongNotesTick(gameplay, now_ms);
 
-    CALL_ORIG(GameplayProcessLogicNotesHook, gameplay.addr(), play_scene_or_ctx);
+    CALL_ORIG(GameplayProcessLogicNotesHook, gameplay.Addr(), play_scene_or_ctx);
 }
 
 void Autoplay::OnGameplayTryTapJudgementForTouch(game::Gameplay gameplay, game::TouchLike touch, int lane_hint) const {
     if (!touch) return;
     // Synthetic touches use the same game path as real touches. Forwarding
     // real input is essential when Autoplay is enabled alongside manual play.
-    CALL_ORIG(GameplayTryTapJudgementForTouchHook, gameplay.addr(), touch.addr(), lane_hint);
+    CALL_ORIG(GameplayTryTapJudgementForTouchHook, gameplay.Addr(), touch.Addr(), lane_hint);
 }
 
 void Autoplay::OnScoreStateApplyJudgement(uintptr_t score,
@@ -319,7 +311,7 @@ void Autoplay::OnScoreStateApplyMiss(uintptr_t score, uintptr_t note) {
 
     int judge_time = last_now_ms_;
     if (judge_time == 0 && logic_note) {
-        judge_time = logic_note.timeStart();
+        judge_time = logic_note.TimeStart();
     }
 
     // Convert a miss into a Perfect Pure judgement when the game says
@@ -457,8 +449,10 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
         const auto current_a = mem::RuntimeMemory::Process().Read<uint32_t>(p64a);
         const auto current_b = mem::RuntimeMemory::Process().Read<uint32_t>(p64b);
         const auto current_c = mem::RuntimeMemory::Process().Read<uint32_t>(pc8);
-        if (!current_a || !current_b || !current_c || *current_a != 0x11019148u ||
-            *current_b != 0x11019148u || *current_c != 0x11032148u) {
+        if (!current_a || !current_b || !current_c ||
+            *current_a != cfg::autoplay::kPatchExpectedAdd64A ||
+            *current_b != cfg::autoplay::kPatchExpectedAdd64B ||
+            *current_c != cfg::autoplay::kPatchExpectedAddC8) {
             ARC_LOGE("Logic-note patch signature mismatch");
             return;
         }
@@ -472,9 +466,9 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
         std::memcpy(expected_a.data(), &*current_a, expected_a.size());
         std::memcpy(expected_b.data(), &*current_b, expected_b.size());
         std::memcpy(expected_c.data(), &*current_c, expected_c.size());
-        const uint32_t patched_a = *current_a & ~0x003FFC00u;
-        const uint32_t patched_b = *current_b & ~0x003FFC00u;
-        const uint32_t patched_c = *current_c & ~0x003FFC00u;
+        const uint32_t patched_a = *current_a & ~cfg::autoplay::kPatchImmediateMask;
+        const uint32_t patched_b = *current_b & ~cfg::autoplay::kPatchImmediateMask;
+        const uint32_t patched_c = *current_c & ~cfg::autoplay::kPatchImmediateMask;
         std::memcpy(replacement_a.data(), &patched_a, replacement_a.size());
         std::memcpy(replacement_b.data(), &patched_b, replacement_b.size());
         std::memcpy(replacement_c.data(), &patched_c, replacement_c.size());
@@ -486,7 +480,8 @@ void Autoplay::TryInstallHooks(const cfg::GameProfile &profile) {
             ARC_LOGE("Failed to read LogicColor_acceptsTouch");
             return;
         }
-        constexpr std::array<uint32_t, 2> color_replacement{0x52800020u, 0xD65F03C0u};
+        constexpr std::array<uint32_t, 2> color_replacement =
+            cfg::autoplay::kPatchColorGateReplacement;
         std::array<std::byte, 8> replacement_color{};
         std::memcpy(replacement_color.data(), color_replacement.data(), replacement_color.size());
 

@@ -122,7 +122,6 @@ Options:
     --ndk-home <path>           Use a specific Android NDK path
     --help                      Show this help message
 "@
-    exit 0
 }
 
 $i = 0
@@ -153,6 +152,7 @@ while ($i -lt $args.Length) {
         }
         "--help" {
             Show-Help
+            exit 0
         }
         Default {
             Write-LogError "Unknown option: $($args[$i])"
@@ -283,11 +283,11 @@ if ($LASTEXITCODE -ne 0) {
     Write-LogError "Build failed with exit code $LASTEXITCODE"
     Write-LogError "Check build/build.log for details"
 
-    Write-Host "`n[33m=== Last 60 lines of build log ===[0m" -ForegroundColor Yellow
+    Write-Host "`n$([char]27)[33m=== Last 60 lines of build log ===$([char]27)[0m" -ForegroundColor Yellow
     if (Test-Path "build/build.log") {
         Get-Content "build/build.log" -Tail 60
     }
-    Write-Host "[33m===============================[0m" -ForegroundColor Yellow
+    Write-Host "$([char]27)[33m===============================$([char]27)[0m" -ForegroundColor Yellow
     exit 1
 }
 

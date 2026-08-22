@@ -4,6 +4,7 @@
 #include <array>
 
 #include "config/ModuleConfig.h"
+#include "utils/JniUtils.hpp"
 #include "utils/Log.h"
 #include "utils/MemoryUtils.hpp"
 #include "utils/memory/RuntimeMemory.hpp"
@@ -12,19 +13,6 @@ namespace arc_helper {
 namespace {
 
 constexpr size_t kMaxVersionStringLen = 64;
-
-inline constexpr std::array<uint8_t, 16> kSig_SetAppVersion = {
-    0xFF, 0x43, 0x02, 0xD1,
-    0xFD, 0x7B, 0x04, 0xA9,
-    0xF9, 0x2B, 0x00, 0xF9,
-    0xF8, 0x5F, 0x06, 0xA9,
-};
-
-void ClearPendingJniException(JNIEnv *env, const char *where) {
-    if (!env || !env->ExceptionCheck()) return;
-    ARC_LOGE("JNI exception at %s", where ? where : "unknown");
-    env->ExceptionClear();
-}
 
 std::string CopyJniString(JNIEnv *env, jstring value) {
     if (!env || !value) return {};
@@ -162,7 +150,7 @@ bool GameVersionManager::EnsureInstalled() {
         resolved_setter_addr_,
         cfg::module::kLibName,
         "Java_low_moe_AppActivity_setAppVersion",
-        kSig_SetAppVersion,
+        cfg::module::kSig_SetAppVersion,
         SetAppVersionHook,
         "Java_low_moe_AppActivity_setAppVersion");
     hook_installed_ = registration && hook_manager_.CommitInlineHook(registration);
@@ -190,6 +178,11 @@ void GameVersionManager::OnSetAppVersion(JNIEnv *env, jobject receiver, jstring 
     }
 }
 
+// Locking contract: the callback runs while mutex_ is held (callers invoke
+// this under lock). The current callback chain only takes locks ordered
+// after mutex_ (FeatureManager, HookManager) and never blocks on a lock that
+// another thread may hold while waiting on mutex_; keep that ordering when
+// adding callbacks.
 void GameVersionManager::FireResolvedCallback() {
     std::scoped_lock lock(mutex_);
     if (!active_profile_ || !resolved_callback_ || resolved_callback_fired_) return;

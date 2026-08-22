@@ -11,16 +11,12 @@ constexpr int PROT_READ = 0x1;
 constexpr int PROT_WRITE = 0x2;
 #endif
 
+#include "utils/memory/CheckedRange.hpp"
+
 namespace arc_helper::mem {
 namespace {
 
-std::expected<uintptr_t, MemoryError> CheckedEnd(uintptr_t address, size_t size) {
-    if (address == 0 || size == 0) return std::unexpected(MemoryError::InvalidRange);
-    if (size > std::numeric_limits<uintptr_t>::max() - address) {
-        return std::unexpected(MemoryError::Overflow);
-    }
-    return address + size;
-}
+using detail::CheckedEnd;
 
 std::expected<std::pair<uintptr_t, uintptr_t>, MemoryError> PageBounds(uintptr_t address,
                                                                         size_t size,

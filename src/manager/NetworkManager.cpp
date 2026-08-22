@@ -139,18 +139,14 @@ NetworkManager &NetworkManager::Instance() {
     return manager;
 }
 
-bool NetworkManager::RegisterHandler(const char *name, int priority, HandlerFn fn) {
+bool NetworkManager::RegisterHandler(std::string_view name, int priority, HandlerFn fn) {
     if (!fn) return false;
 
     {
         std::scoped_lock lock(handler_registry_mutex_);
         auto current = std::atomic_load_explicit(&handler_snapshot_, std::memory_order_acquire);
-        if (!current) {
-            current = network::HandlerSnapshot::Empty();
-            std::atomic_store_explicit(&handler_snapshot_, current, std::memory_order_release);
-        }
 
-        const std::string_view handler_name = name ? std::string_view{name} : std::string_view{};
+        const std::string_view handler_name = name;
         if (!current->Contains(handler_name, fn)) {
             const network::HandlerSnapshot::Entry entry{
                 std::string(handler_name), priority, next_register_order_++, fn};
@@ -358,8 +354,8 @@ bool NetworkManager::EnsureHooksInstalled() {
     }
 
     hook_manager_.EnsureReady();
-    lib_base_ = hook_manager_.GetLibBase();
-    if (!lib_base_) return false;
+    const uintptr_t lib_base = hook_manager_.GetLibBase();
+    if (!lib_base) return false;
 
     std::array<HookManager::InlineHookRegistration, 2> registrations = {
         hook_manager_.RegisterInlineHook(addr_httpclient_process_request_,
@@ -437,8 +433,7 @@ void NetworkManager::WriteCurlError(char *curl_error_buf, const char *msg) {
         return;
     }
 
-    constexpr size_t kMax = 255; // CURL_ERROR_SIZE - 1
-    const size_t n = SafeStrnlen(msg, kMax);
+    const size_t n = SafeStrnlen(msg, cfg::network_block::kCurlErrorMaxLen);
     std::memcpy(curl_error_buf, msg, n);
     curl_error_buf[n] = '\0';
 }

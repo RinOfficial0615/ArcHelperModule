@@ -7,6 +7,9 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #include "utils/Log.h"
@@ -16,12 +19,29 @@ namespace {
 
 constexpr size_t kMaxConfigBytes = 64 * 1024;
 
+bool EnsureDirectory(const std::string &path, const char *label) {
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    if (ec) {
+        ARC_LOGE("Failed to create %s %s: %s", label, path.c_str(), ec.message().c_str());
+        return false;
+    }
+    return true;
+}
+
 bool AtomicReplace(const std::filesystem::path &source,
                    const std::filesystem::path &destination) {
 #ifdef _WIN32
     return MoveFileExA(source.string().c_str(), destination.string().c_str(),
                        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
 #else
+    // Flush the temp file to disk before the rename so a crash cannot leave
+    // the config truncated behind an already-swapped directory entry.
+    const int fd = open(source.c_str(), O_RDONLY);
+    if (fd >= 0) {
+        (void)fsync(fd);
+        (void)close(fd);
+    }
     return std::rename(source.c_str(), destination.c_str()) == 0;
 #endif
 }
@@ -73,27 +93,9 @@ bool ConfigManager::Load() {
         return false;
     }
 
-    std::error_code ec;
-    std::filesystem::create_directories(root_dir_, ec);
-    if (ec) {
-        ARC_LOGE("Failed to create root %s: %s",
-                 root_dir_.c_str(), ec.message().c_str());
-        return false;
-    }
-    ec.clear();
-    std::filesystem::create_directories(charts_dir_, ec);
-    if (ec) {
-        ARC_LOGE("Failed to create charts directory %s: %s",
-                 charts_dir_.c_str(), ec.message().c_str());
-        return false;
-    }
-    ec.clear();
-    std::filesystem::create_directories(cache_dir_, ec);
-    if (ec) {
-        ARC_LOGE("Failed to create cache directory %s: %s",
-                 cache_dir_.c_str(), ec.message().c_str());
-        return false;
-    }
+    if (!EnsureDirectory(root_dir_, "root")) return false;
+    if (!EnsureDirectory(charts_dir_, "charts directory")) return false;
+    if (!EnsureDirectory(cache_dir_, "cache directory")) return false;
 
     const std::filesystem::path path = std::filesystem::path(root_dir_) / "config.json";
     std::ifstream input(path, std::ios::binary);
@@ -132,13 +134,7 @@ bool ConfigManager::Save() {
     std::scoped_lock lock(mutex_);
     if (root_dir_.empty()) return false;
 
-    std::error_code ec;
-    std::filesystem::create_directories(root_dir_, ec);
-    if (ec) {
-        ARC_LOGE("Failed to create root %s: %s",
-                 root_dir_.c_str(), ec.message().c_str());
-        return false;
-    }
+    if (!EnsureDirectory(root_dir_, "root")) return false;
 
     const std::filesystem::path path = std::filesystem::path(root_dir_) / "config.json";
     const std::filesystem::path temporary = path.string() + ".tmp";

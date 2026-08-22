@@ -12,3 +12,4 @@
 #include "utils/memory/PatchTransaction.hpp"
 #include "utils/memory/ProcMaps.hpp"
 #include "utils/memory/RuntimeMemory.hpp"
+#include "utils/memory/ShadowHookAdapter.hpp"

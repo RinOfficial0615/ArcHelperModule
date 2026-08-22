@@ -7,7 +7,6 @@
 #include <fstream>
 #include <functional>
 #include <limits>
-#include <set>
 #include <thread>
 
 #include <zlib.h>
@@ -27,6 +26,14 @@ uint16_t U16(const uint8_t *p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)
 uint32_t U32(const uint8_t *p) {
     return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
            (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+}
+
+std::string TrimTrailingSlashes(std::string_view raw) {
+    std::string trimmed(raw);
+    while (!trimmed.empty() && (trimmed.back() == '/' || trimmed.back() == '\\')) {
+        trimmed.pop_back();
+    }
+    return trimmed;
 }
 
 } // namespace
@@ -110,9 +117,7 @@ bool Archive::Open(const std::string &path, std::string &error) {
         if (!name_len || next > central_end) { error = "central name bounds"; return false; }
         const std::string_view raw(reinterpret_cast<const char *>(bytes_.data() + p + 46), name_len);
         const bool raw_dir = raw.back() == '/' || raw.back() == '\\';
-        std::string trimmed(raw);
-        while (!trimmed.empty() && (trimmed.back() == '/' || trimmed.back() == '\\')) trimmed.pop_back();
-        if (!NormalizePath(trimmed, entry.name)) { error = "unsafe path"; return false; }
+        if (!NormalizePath(TrimTrailingSlashes(raw), entry.name)) { error = "unsafe path"; return false; }
         entry.directory = raw_dir;
         const uint32_t unix_mode = (external_attr >> 16) & 0xF000;
         if (unix_mode == 0xA000) { error = "symlink entry rejected"; return false; }
@@ -122,7 +127,8 @@ bool Archive::Open(const std::string &path, std::string &error) {
         if (!entry.directory) {
             if (entry.uncompressed_size > kMaxEntryBytes) { error = "entry size limit"; return false; }
             if (entry.uncompressed_size > 1024 * 1024 && entry.compressed_size > 0 &&
-                entry.uncompressed_size / entry.compressed_size > 200) {
+                static_cast<uint64_t>(entry.uncompressed_size) >
+                    static_cast<uint64_t>(entry.compressed_size) * 200ull) {
                 error = "compression ratio limit"; return false;
             }
             if (entry.uncompressed_size > kMaxTotalOutputBytes - total_output) {
@@ -183,12 +189,7 @@ bool Archive::Extract(const Entry &entry, std::vector<uint8_t> &out, std::string
     }
     std::string local_name;
     const std::string_view raw_local_name(reinterpret_cast<const char *>(header + 30), name_len);
-    std::string trimmed_local_name(raw_local_name);
-    while (!trimmed_local_name.empty() &&
-           (trimmed_local_name.back() == '/' || trimmed_local_name.back() == '\\')) {
-        trimmed_local_name.pop_back();
-    }
-    if (!NormalizePath(trimmed_local_name, local_name) || local_name != entry.name) {
+    if (!NormalizePath(TrimTrailingSlashes(raw_local_name), local_name) || local_name != entry.name) {
         error = "local/central name mismatch"; return false;
     }
     out.resize(entry.uncompressed_size);

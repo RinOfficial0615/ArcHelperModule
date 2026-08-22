@@ -39,17 +39,20 @@ inline bool Contains(std::string_view text, std::string_view package_name) {
     return false;
 }
 
+inline bool MatchesDefaultPackages(std::string_view package_name) {
+    return std::find_if(kDefaultPackages.begin(), kDefaultPackages.end(),
+                        [&](const char *default_package) {
+                            return package_name == default_package;
+                        }) != kDefaultPackages.end();
+}
+
 inline bool IsTargetPackage(int module_dir_fd, const char *package_name) {
     if (module_dir_fd < 0 || !package_name || package_name[0] == '\0') return false;
     constexpr size_t kMaxScopeBytes = 256 * 1024;
     std::string contents;
     contents.reserve(4096);
     const int fd = openat(module_dir_fd, "scope.txt", O_RDONLY | O_CLOEXEC);
-    if (fd < 0) {
-        for (const char *default_package : kDefaultPackages)
-            if (std::string_view(package_name) == default_package) return true;
-        return false;
-    }
+    if (fd < 0) return MatchesDefaultPackages(package_name);
     std::array<char, 4096> buffer{};
     bool truncated = false;
     while (contents.size() < kMaxScopeBytes) {
@@ -59,9 +62,7 @@ inline bool IsTargetPackage(int module_dir_fd, const char *package_name) {
         if (size < 0 && errno == EINTR) continue;
         if (size < 0) {
             close(fd);
-            for (const char *default_package : kDefaultPackages)
-                if (std::string_view(package_name) == default_package) return true;
-            return false;
+            return MatchesDefaultPackages(package_name);
         }
         if (size == 0) break;
         contents.append(buffer.data(), static_cast<size_t>(size));

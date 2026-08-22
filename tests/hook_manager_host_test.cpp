@@ -79,7 +79,7 @@ bool InlineHook::InstallA64(uintptr_t target, void *, void **orig_fn_out, void *
     return true;
 }
 
-bool InlineHook::RestoreA64(uintptr_t, void *, void *) {
+bool InlineHook::RestoreA64(void *) {
     ++g_restore_calls;
     if (g_fail_restore_count > 0) {
         --g_fail_restore_count;
