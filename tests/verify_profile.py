@@ -203,6 +203,41 @@ PROFILES = {
             0x13DB418: 0x350012C0,
         },
     },
+    "7.0.260c": {
+        "so": ROOT.parent / "7.0.260c" / "libcocos2dcpp.so",
+        "sha256": "09fad9e3299acf9b68613b8418c6dcc1bd7f200e42945198f369bbf491e9ad34",
+        "expected": {
+            0x188BA60: "e80f19fcfd7b01a9fc6f02a9fa6703a9",
+            0x10AC6C4: "ff4306d1ea8b00fde923126dfd7b13a9",
+            0x156EBA8: "ff8302d1fd7b04a9fb2b00f9fa6706a9",
+            0x1727198: "ff0302d1fd7b04a9f85f05a9f65706a9",
+            0xF63130: "ff4306d1ef3b0f6ded33106deb2b116d",
+            0x16F2CB4: "ffc301d1e81b00fdfd7b04a9f65705a9",
+            0x9A1B4C: "ff0302d1e81b00fdfd7b04a9f85f05a9",
+            0x1424BB0: "ffc300d1fd7b01a9f44f02a9fd430091",
+            0xEA1BB4: "ff8301d1fd7b02a9f71b00f9f65704a9",
+            0xE1D294: "ff0304d1fd7b0fa9fdc30391a20f39a9",
+            # Songlist data loader: AAssetManager_open BL at 0x165A200, whose
+            # return address is the exact caller 0x165A204.
+            0x165A200: "b4201094f40300aae00700b4e00314aa",
+            0xB233C4: "ff8303d1fd7b08a9fc6f09a9fa670aa9",
+            0x1994504: "ff8301d1fd7b02a9f85f03a9f65704a9",
+            0x8DB778: "ffc301d1fd7b04a9f65705a9f44f06a9",
+            0x1A45494: "fd7bbda9f65701a9f44f02a9fd030091",
+            0x19282C4: "fd7bbaa9fc6f01a9fa6702a9f85f03a9",
+            0x1520354: "ff8303d1fd7b0ba9f6570ca9f44f0da9",
+            0x8C606C: "fd7bbea9f30b00f9fd030091f30300aa",
+            # Scenecontrol getter keeps the 7.0.0c layout at play context +0x110.
+            0x83DDAC: "00404439c0035fd6",
+        },
+        "patches": {
+            0x188BF48: 0x11019148,
+            0x188C000: 0x11019148,
+            0x188C050: 0x11032148,
+            0x17BB2EC: 0x540013A1,
+            0x17BB308: 0x350012C0,
+        },
+    },
 }
 
 

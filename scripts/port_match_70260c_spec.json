@@ -1,0 +1,151 @@
+{
+  "_comment": [
+    "Verified 7.0.255c -> 7.0.260c function mapping consumed by the 7.0.260c profile.",
+    "19 of 21 targets were unique masked-instruction consensus winners on the first",
+    "unpinned locate pass; all pins below re-verified by a second locate run.",
+    "songlist_asset_open ranked only WEAK between 0x165A000 and a multiplayer-tutorial",
+    "lookalike (0xBB8318) because 7.0.255c had inlined extra helpers into the 0x744-byte",
+    "body that live standalone again in 7.0.260c. Identity was settled by the",
+    "AAssetManager_open PLT stub (.AAssetManager_open @ 0x1A624D0) having exactly two",
+    "callers: sub_165A000 (call at +0x200 = 0x165A200, BL; MOV X20,X0; CBZ X0 pattern,",
+    "CCFileUtils-android.cpp strings) and the official integrity/preload path sub_1A49358.",
+    "registry_getter (0x20 bytes) is below port_match's voting floor; it was found by a",
+    "unique 24-byte tail pattern (CBZ/LDR/LDR/RET/MOV/RET) and confirmed by decompile:",
+    "if (qword_1BE0DD0) return *(*(qword_1BE0DD0 + 120) + 24), the exact 7.0.255c chain.",
+    "expect_bytes can only cover the first word: the comparison always starts at the",
+    "pinned address, and word 1 (LDR X8,[X8,#lo12]) keeps a non-PC-relative imm12 that",
+    "changed because the global moved from page offset 0x028 to 0xDD0 - port_match's",
+    "mask deliberately leaves ordinary loads alone, so no prefix spanning word 1 can",
+    "ever pass. The 4 bytes are the pre-masked ADRP X8 word (0x90000008 both sides);",
+    "the pin's real evidence is the unique structural tail plus the decompile above."
+  ],
+  "functions": [
+    {
+      "name": "process_logic_notes",
+      "size": "0x6E0",
+      "old": "0x127D830",
+      "new": "0x188BA60"
+    },
+    {
+      "name": "try_tap_judgement_for_touch",
+      "size": "0x8E4",
+      "old": "0x14B7010",
+      "new": "0x10AC6C4"
+    },
+    {
+      "name": "score_state_apply_judgement",
+      "size": "0x3D8",
+      "old": "0xB4DB58",
+      "new": "0x156EBA8"
+    },
+    {
+      "name": "score_state_apply_miss",
+      "size": "0x1C8",
+      "old": "0xE19784",
+      "new": "0x1727198"
+    },
+    {
+      "name": "show_judgement_effect_at_note",
+      "size": "0xAC8",
+      "old": "0xEED33C",
+      "new": "0xF63130"
+    },
+    {
+      "name": "note_effect_on_miss",
+      "size": "0x180",
+      "old": "0x12E3B28",
+      "new": "0x16F2CB4"
+    },
+    {
+      "name": "note_effect_on_judgement",
+      "size": "0x118",
+      "old": "0x13511A0",
+      "new": "0x9A1B4C"
+    },
+    {
+      "name": "logic_color_accepts_touch",
+      "size": "0x180",
+      "old": "0x16DA304",
+      "new": "0x1424BB0"
+    },
+    {
+      "name": "httpclient_process_request",
+      "size": "0x4B8",
+      "old": "0x13D6630",
+      "new": "0xEA1BB4"
+    },
+    {
+      "name": "curl_easy_setopt_wrapper",
+      "size": "0x80",
+      "old": "0xD2F7D8",
+      "new": "0xE1D294"
+    },
+    {
+      "name": "songlist_parser_body",
+      "size": "0x7A60",
+      "old": "0x19398D8",
+      "new": "0x9C3A70"
+    },
+    {
+      "name": "asset_bundle_loader",
+      "size": "0x9CC",
+      "old": "0x13DAFD0",
+      "new": "0x17BAEC0"
+    },
+    {
+      "name": "songlist_asset_open",
+      "size": "0x744",
+      "old": "0xD2767C",
+      "new": "0x165A000"
+    },
+    {
+      "name": "songlist_difficulty_filter",
+      "size": "0x354",
+      "old": "0x126F07C",
+      "new": "0xB233C4"
+    },
+    {
+      "name": "difficulty_availability",
+      "size": "0x200",
+      "old": "0x150560C",
+      "new": "0x1994504"
+    },
+    {
+      "name": "song_unlock_mask_check",
+      "size": "0x1AC",
+      "old": "0x115DE64",
+      "new": "0x8DB778"
+    },
+    {
+      "name": "content_availability",
+      "size": "0x64",
+      "old": "0x13360A4",
+      "new": "0x1A45494"
+    },
+    {
+      "name": "play_launcher",
+      "size": "0x288C",
+      "old": "0xD2A368",
+      "new": "0x19282C4"
+    },
+    {
+      "name": "chart_path_builder",
+      "size": "0x3B0",
+      "old": "0x903168",
+      "new": "0x1520354"
+    },
+    {
+      "name": "find_song_by_id",
+      "size": "0x3C",
+      "old": "0x19E8F54",
+      "new": "0x8C606C"
+    },
+    {
+      "name": "registry_getter",
+      "size": "0x20",
+      "old": "0x161CB34",
+      "new": "0x165C7A8",
+      "expect_bytes": "08000090"
+    }
+  ]
+}
